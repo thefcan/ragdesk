@@ -1,7 +1,8 @@
 """ragdesk AI service.
 
-Phase 0 exposes liveness and readiness probes. Later phases add the document
-ingestion pipeline (chunk -> embed -> pgvector) and provider-agnostic RAG chat.
+Phase 0 exposes liveness, readiness and version probes. Later phases add the
+document ingestion pipeline (chunk -> embed -> pgvector) and provider-agnostic
+RAG chat.
 """
 
 import logging
@@ -18,6 +19,8 @@ logging.basicConfig(
 )
 logger = logging.getLogger("ragdesk-ai")
 
+VERSION = "dev"
+
 app = FastAPI(title="ragdesk-ai", version="0.1.0")
 
 
@@ -25,6 +28,12 @@ app = FastAPI(title="ragdesk-ai", version="0.1.0")
 def healthz() -> dict:
     """Liveness probe: the process is running."""
     return {"status": "ok", "service": "ragdesk-ai"}
+
+
+@app.get("/version")
+def version() -> dict:
+    """Report build metadata, useful for verifying what is deployed."""
+    return {"service": "ragdesk-ai", "version": VERSION}
 
 
 @app.get("/readyz")
@@ -37,7 +46,7 @@ def readyz() -> JSONResponse:
         with psycopg.connect(settings.database_url, connect_timeout=3) as conn:
             conn.execute("SELECT 1")
         checks["postgres"] = "ok"
-    except Exception as exc:  # noqa: BLE001 - report any failure to the probe
+    except Exception as exc:
         checks["postgres"] = f"down: {exc}"
         status_code = 503
 
