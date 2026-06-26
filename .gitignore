@@ -1,0 +1,25 @@
+# Go
+/api/ragdesk-api
+/api/bin/
+
+# Python
+__pycache__/
+*.py[cod]
+.venv/
+venv/
+
+# Node
+node_modules/
+.next/
+out/
+
+# Env / secrets
+.env
+*.local
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Local data / volumes
+pgdata/
