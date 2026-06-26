@@ -42,6 +42,7 @@ func (s *Server) routes() {
 
 	r.Get("/healthz", s.handleHealth)
 	r.Get("/readyz", s.handleReady)
+	r.Get("/version", s.handleVersion)
 }
 
 // Handler exposes the configured http.Handler.
