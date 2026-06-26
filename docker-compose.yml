@@ -3,6 +3,7 @@ name: ragdesk
 services:
   postgres:
     image: pgvector/pgvector:pg16
+    restart: unless-stopped
     environment:
       POSTGRES_USER: ${POSTGRES_USER:-ragdesk}
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-ragdesk}
@@ -19,6 +20,7 @@ services:
 
   redis:
     image: redis:7-alpine
+    restart: unless-stopped
     ports:
       - "6379:6379"
     healthcheck:
@@ -29,6 +31,7 @@ services:
 
   api:
     build: ./api
+    restart: unless-stopped
     environment:
       PORT: 8080
       DATABASE_URL: postgres://ragdesk:ragdesk@postgres:5432/ragdesk?sslmode=disable
@@ -42,9 +45,16 @@ services:
         condition: service_healthy
       redis:
         condition: service_healthy
+    healthcheck:
+      test: ["CMD", "/ragdesk-api", "healthcheck"]
+      interval: 10s
+      timeout: 3s
+      retries: 5
+      start_period: 5s
 
   ai:
     build: ./ai
+    restart: unless-stopped
     environment:
       PORT: 8000
       DATABASE_URL: postgres://ragdesk:ragdesk@postgres:5432/ragdesk
@@ -58,6 +68,12 @@ services:
         condition: service_healthy
     extra_hosts:
       - "host.docker.internal:host-gateway"
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request,sys; sys.exit(0 if urllib.request.urlopen('http://localhost:8000/healthz').getcode()==200 else 1)"]
+      interval: 10s
+      timeout: 3s
+      retries: 5
+      start_period: 5s
 
 volumes:
   pgdata:
