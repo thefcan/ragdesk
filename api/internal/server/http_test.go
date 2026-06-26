@@ -45,7 +45,7 @@ func newTestServer(t *testing.T) http.Handler {
 	t.Cleanup(func() { _ = rdb.Close() })
 	iss := auth.NewIssuer("test-secret", time.Hour)
 	log := slog.New(slog.NewTextHandler(io.Discard, nil))
-	return server.New(st, rdb, iss, log).Handler()
+	return server.New(st, rdb, iss, []string{"*"}, log).Handler()
 }
 
 func doJSON(t *testing.T, h http.Handler, method, path, token string, body any) (int, map[string]any) {

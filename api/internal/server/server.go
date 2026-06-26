@@ -8,6 +8,7 @@ import (
 
 	"github.com/go-chi/chi/v5"
 	"github.com/go-chi/chi/v5/middleware"
+	"github.com/go-chi/cors"
 	"github.com/redis/go-redis/v9"
 
 	"github.com/thefcan/ragdesk/api/internal/auth"
@@ -16,21 +17,23 @@ import (
 
 // Server holds the router and its backing dependencies.
 type Server struct {
-	router *chi.Mux
-	store  *store.Store
-	rdb    *redis.Client
-	issuer *auth.Issuer
-	log    *slog.Logger
+	router  *chi.Mux
+	store   *store.Store
+	rdb     *redis.Client
+	issuer  *auth.Issuer
+	origins []string
+	log     *slog.Logger
 }
 
 // New constructs a Server with production middleware and routes registered.
-func New(st *store.Store, rdb *redis.Client, iss *auth.Issuer, log *slog.Logger) *Server {
+func New(st *store.Store, rdb *redis.Client, iss *auth.Issuer, corsOrigins []string, log *slog.Logger) *Server {
 	s := &Server{
-		router: chi.NewRouter(),
-		store:  st,
-		rdb:    rdb,
-		issuer: iss,
-		log:    log,
+		router:  chi.NewRouter(),
+		store:   st,
+		rdb:     rdb,
+		issuer:  iss,
+		origins: corsOrigins,
+		log:     log,
 	}
 	s.routes()
 	return s
@@ -43,6 +46,13 @@ func (s *Server) routes() {
 	// X-Forwarded-For / X-Real-IP headers and is spoofable (chi GHSA advisories).
 	r.Use(middleware.Recoverer)
 	r.Use(middleware.Timeout(15 * time.Second))
+	r.Use(cors.Handler(cors.Options{
+		AllowedOrigins:   s.origins,
+		AllowedMethods:   []string{http.MethodGet, http.MethodPost, http.MethodPut, http.MethodDelete, http.MethodOptions},
+		AllowedHeaders:   []string{"Authorization", "Content-Type"},
+		AllowCredentials: false,
+		MaxAge:           300,
+	}))
 	r.Use(s.requestLogger)
 
 	r.Get("/healthz", s.handleHealth)
