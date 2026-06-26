@@ -4,6 +4,7 @@ package config
 import (
 	"fmt"
 	"os"
+	"time"
 )
 
 // Config holds the settings the API needs to run.
@@ -12,6 +13,8 @@ type Config struct {
 	DatabaseURL  string
 	RedisURL     string
 	AIServiceURL string
+	JWTSecret    string
+	JWTTTL       time.Duration
 	Env          string
 }
 
@@ -23,6 +26,8 @@ func Load() (Config, error) {
 		DatabaseURL:  getenv("DATABASE_URL", "postgres://ragdesk:ragdesk@localhost:5432/ragdesk?sslmode=disable"),
 		RedisURL:     getenv("REDIS_URL", "redis://localhost:6379/0"),
 		AIServiceURL: getenv("AI_SERVICE_URL", "http://localhost:8000"),
+		JWTSecret:    getenv("JWT_SECRET", "dev-secret-change-me"),
+		JWTTTL:       24 * time.Hour,
 		Env:          getenv("RAGDESK_ENV", "development"),
 	}
 	if cfg.DatabaseURL == "" {
@@ -30,6 +35,9 @@ func Load() (Config, error) {
 	}
 	if cfg.RedisURL == "" {
 		return Config{}, fmt.Errorf("REDIS_URL is required")
+	}
+	if cfg.JWTSecret == "" {
+		return Config{}, fmt.Errorf("JWT_SECRET is required")
 	}
 	return cfg, nil
 }
