@@ -4,7 +4,7 @@
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
 [![Go](https://img.shields.io/badge/Go-1.26-00ADD8?logo=go&logoColor=white)](api/go.mod)
 [![Python](https://img.shields.io/badge/Python-FastAPI-3776AB?logo=python&logoColor=white)](ai/)
-[![Next.js](https://img.shields.io/badge/Next.js-16-black?logo=next.js)](web/)
+[![Next.js](https://img.shields.io/badge/Next.js-16-black?logo=next.js)](docs/architecture.md)
 
 > **A multi-tenant, AI-powered knowledge SaaS.** Teams upload their documents
 > and chat with an assistant that answers **only from those documents, with
