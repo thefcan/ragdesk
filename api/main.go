@@ -1,6 +1,5 @@
 // Command ragdesk-api is the Go core service: it owns tenancy, billing and
-// metering, and fronts the Python AI service. Phase 0 wires the server,
-// dependencies, health probes and graceful shutdown.
+// metering, and fronts the Python AI service.
 package main
 
 import (
@@ -17,8 +16,10 @@ import (
 	"github.com/jackc/pgx/v5/pgxpool"
 	"github.com/redis/go-redis/v9"
 
+	"github.com/thefcan/ragdesk/api/internal/auth"
 	"github.com/thefcan/ragdesk/api/internal/config"
 	"github.com/thefcan/ragdesk/api/internal/server"
+	"github.com/thefcan/ragdesk/api/internal/store"
 )
 
 func main() {
@@ -43,6 +44,18 @@ func main() {
 	}
 	defer db.Close()
 
+	st := store.New(db)
+	{
+		ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+		err := st.Migrate(ctx)
+		cancel()
+		if err != nil {
+			log.Error("migrate", slog.Any("err", err))
+			os.Exit(1)
+		}
+		log.Info("migrations applied")
+	}
+
 	opt, err := redis.ParseURL(cfg.RedisURL)
 	if err != nil {
 		log.Error("redis url", slog.Any("err", err))
@@ -51,9 +64,11 @@ func main() {
 	rdb := redis.NewClient(opt)
 	defer func() { _ = rdb.Close() }()
 
+	issuer := auth.NewIssuer(cfg.JWTSecret, cfg.JWTTTL)
+
 	srv := &http.Server{
 		Addr:              ":" + cfg.Port,
-		Handler:           server.New(db, rdb, log).Handler(),
+		Handler:           server.New(st, rdb, issuer, log).Handler(),
 		ReadHeaderTimeout: 5 * time.Second,
 	}
 

@@ -2,7 +2,6 @@ package server
 
 import (
 	"context"
-	"encoding/json"
 	"log/slog"
 	"net/http"
 	"time"
@@ -19,8 +18,7 @@ func (s *Server) handleHealth(w http.ResponseWriter, _ *http.Request) {
 	writeJSON(w, http.StatusOK, healthResponse{Status: "ok", Service: "ragdesk-api"})
 }
 
-// handleReady is a readiness probe: it verifies downstream dependencies are
-// reachable before declaring the service ready to serve traffic.
+// handleReady is a readiness probe: it verifies downstream dependencies.
 func (s *Server) handleReady(w http.ResponseWriter, r *http.Request) {
 	ctx, cancel := context.WithTimeout(r.Context(), 3*time.Second)
 	defer cancel()
@@ -28,13 +26,12 @@ func (s *Server) handleReady(w http.ResponseWriter, r *http.Request) {
 	checks := map[string]string{}
 	status := http.StatusOK
 
-	if err := s.db.Ping(ctx); err != nil {
+	if err := s.store.Ping(ctx); err != nil {
 		checks["postgres"] = "down: " + err.Error()
 		status = http.StatusServiceUnavailable
 	} else {
 		checks["postgres"] = "ok"
 	}
-
 	if err := s.rdb.Ping(ctx).Err(); err != nil {
 		checks["redis"] = "down: " + err.Error()
 		status = http.StatusServiceUnavailable
@@ -72,10 +69,4 @@ type statusWriter struct {
 func (w *statusWriter) WriteHeader(code int) {
 	w.status = code
 	w.ResponseWriter.WriteHeader(code)
-}
-
-func writeJSON(w http.ResponseWriter, status int, v any) {
-	w.Header().Set("Content-Type", "application/json")
-	w.WriteHeader(status)
-	_ = json.NewEncoder(w).Encode(v)
 }
