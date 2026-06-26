@@ -35,7 +35,9 @@ func New(db *pgxpool.Pool, rdb *redis.Client, log *slog.Logger) *Server {
 func (s *Server) routes() {
 	r := s.router
 	r.Use(middleware.RequestID)
-	r.Use(middleware.RealIP)
+	// middleware.RealIP is intentionally omitted: it trusts client-supplied
+	// X-Forwarded-For / X-Real-IP headers and is spoofable (chi GHSA advisories).
+	// Real client IP behind a trusted proxy is handled at deploy time.
 	r.Use(middleware.Recoverer)
 	r.Use(middleware.Timeout(15 * time.Second))
 	r.Use(s.requestLogger)
