@@ -16,9 +16,23 @@ jobs:
   api:
     name: api (Go)
     runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: pgvector/pgvector:pg16
+        env:
+          POSTGRES_USER: ragdesk
+          POSTGRES_PASSWORD: ragdesk
+          POSTGRES_DB: ragdesk_test
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U ragdesk -d ragdesk_test"
+          --health-interval 5s --health-timeout 3s --health-retries 12
     defaults:
       run:
         working-directory: api
+    env:
+      DATABASE_URL: postgres://ragdesk:ragdesk@localhost:5432/ragdesk_test?sslmode=disable
     steps:
       - uses: actions/checkout@v5
       - uses: actions/setup-go@v6
@@ -36,8 +50,8 @@ jobs:
           working-directory: api
       - name: build
         run: go build ./...
-      - name: test (race detector)
-        run: go test -race ./...
+      - name: test (race detector, integration)
+        run: go test -race -p 1 ./...
       - name: govulncheck
         run: |
           go install golang.org/x/vuln/cmd/govulncheck@latest
