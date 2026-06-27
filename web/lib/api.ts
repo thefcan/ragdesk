@@ -16,10 +16,19 @@ function headers(token?: string): HeadersInit {
   return h;
 }
 
+export class ApiError extends Error {
+  status: number;
+  constructor(message: string, status: number) {
+    super(message);
+    this.name = "ApiError";
+    this.status = status;
+  }
+}
+
 async function handle<T>(res: Response): Promise<T> {
   const data = await res.json().catch(() => ({}));
   if (!res.ok) {
-    throw new Error((data as { error?: string }).error ?? `request failed (${res.status})`);
+    throw new ApiError((data as { error?: string }).error ?? `request failed (${res.status})`, res.status);
   }
   return data as T;
 }

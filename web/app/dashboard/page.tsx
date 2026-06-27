@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
-import { listWorkspaces, createWorkspace, type Workspace } from "@/lib/api";
+import { listWorkspaces, createWorkspace, ApiError, type Workspace } from "@/lib/api";
 import { getToken, clearToken } from "@/lib/auth";
 
 export default function DashboardPage() {
@@ -25,6 +25,11 @@ export default function DashboardPage() {
         if (active) setWorkspaces(data.workspaces ?? []);
       })
       .catch((err: unknown) => {
+        if (err instanceof ApiError && err.status === 401) {
+          clearToken();
+          router.push("/login");
+          return;
+        }
         if (active) setError(err instanceof Error ? err.message : "failed to load workspaces");
       })
       .finally(() => {
