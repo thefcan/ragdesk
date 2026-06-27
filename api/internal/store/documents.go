@@ -96,3 +96,46 @@ func (s *Store) MarkDocumentFailed(ctx context.Context, documentID, reason strin
 	)
 	return err
 }
+
+// PendingDocumentIDs returns the ids of documents stuck in the pending state,
+// used to re-enqueue work that may have been lost to a worker crash.
+func (s *Store) PendingDocumentIDs(ctx context.Context) ([]string, error) {
+	rows, err := s.pool.Query(ctx, `SELECT id::text FROM documents WHERE status = 'pending'`)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	var ids []string
+	for rows.Next() {
+		var id string
+		if err := rows.Scan(&id); err != nil {
+			return nil, err
+		}
+		ids = append(ids, id)
+	}
+	return ids, rows.Err()
+}
+
+// ReingestDocument resets a document to pending so it can be processed again,
+// enforcing workspace membership. Returns ErrNotFound if absent or not visible.
+func (s *Store) ReingestDocument(ctx context.Context, userID, workspaceID, documentID string) error {
+	if _, err := s.GetWorkspaceForUser(ctx, userID, workspaceID); err != nil {
+		return err
+	}
+	tag, err := s.pool.Exec(ctx,
+		`UPDATE documents SET status = 'pending', error = NULL WHERE id = $1 AND workspace_id = $2`,
+		documentID, workspaceID,
+	)
+	if err != nil {
+		var pgErr *pgconn.PgError
+		if errors.As(err, &pgErr) && pgErr.Code == "22P02" { // invalid uuid input
+			return ErrNotFound
+		}
+		return err
+	}
+	if tag.RowsAffected() == 0 {
+		return ErrNotFound
+	}
+	return nil
+}

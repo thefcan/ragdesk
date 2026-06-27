@@ -4,9 +4,11 @@ import os
 
 import psycopg
 import pytest
+from fastapi.testclient import TestClient
 
 from app.config import settings
 from app.ingest import ingest_document
+from app.main import app
 
 # Self-contained schema: chunks carries no cross-table FKs (service boundary),
 # so the test needs no users/workspaces/documents rows.
@@ -50,3 +52,17 @@ def test_ingest_writes_chunks_with_embeddings():
             (doc,),
         ).fetchone()[0]
         assert dim == 768
+
+
+def test_ingest_rejects_missing_internal_token():
+    settings.internal_token = "secret"
+    try:
+        client = TestClient(app)
+        body = {"document_id": "d", "workspace_id": "w", "text": "x"}
+        assert client.post("/ingest", json=body).status_code == 401
+        assert (
+            client.post("/ingest", headers={"X-Internal-Token": "wrong"}, json=body).status_code
+            == 401
+        )
+    finally:
+        settings.internal_token = ""

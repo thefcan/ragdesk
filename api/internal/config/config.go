@@ -18,6 +18,7 @@ type Config struct {
 	DatabaseURL        string
 	RedisURL           string
 	AIServiceURL       string
+	AIInternalToken    string
 	JWTSecret          string
 	JWTTTL             time.Duration
 	CORSAllowedOrigins []string
@@ -32,6 +33,7 @@ func Load() (Config, error) {
 		DatabaseURL:        getenv("DATABASE_URL", "postgres://ragdesk:ragdesk@localhost:5432/ragdesk?sslmode=disable"),
 		RedisURL:           getenv("REDIS_URL", "redis://localhost:6379/0"),
 		AIServiceURL:       getenv("AI_SERVICE_URL", "http://localhost:8000"),
+		AIInternalToken:    getenv("AI_INTERNAL_TOKEN", ""),
 		JWTSecret:          getenv("JWT_SECRET", DefaultJWTSecret),
 		JWTTTL:             24 * time.Hour,
 		CORSAllowedOrigins: splitAndTrim(getenv("CORS_ALLOWED_ORIGINS", "http://localhost:3000")),

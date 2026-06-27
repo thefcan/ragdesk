@@ -71,7 +71,7 @@ func main() {
 	issuer := auth.NewIssuer(cfg.JWTSecret, cfg.JWTTTL)
 
 	// Async ingestion worker.
-	aiClient := ai.NewClient(cfg.AIServiceURL)
+	aiClient := ai.NewClient(cfg.AIServiceURL, cfg.AIInternalToken)
 	worker := ingest.NewWorker(rdb, st, aiClient, log)
 	workerCtx, stopWorker := context.WithCancel(context.Background())
 	go worker.Run(workerCtx)

@@ -9,6 +9,8 @@ class Settings(BaseSettings):
     port: int = 8000
     database_url: str = "postgresql://ragdesk:ragdesk@localhost:5432/ragdesk"
     ragdesk_env: str = "development"
+    # Shared secret the Go API sends; empty disables the check (dev only).
+    internal_token: str = ""
 
     # Provider-agnostic embeddings. "ollama" calls a local model; "fake" yields
     # deterministic vectors so tests and CI need no model server.

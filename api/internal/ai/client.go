@@ -13,12 +13,14 @@ import (
 // Client calls the ragdesk AI service.
 type Client struct {
 	baseURL string
+	token   string
 	http    *http.Client
 }
 
-// NewClient returns a Client targeting the AI service base URL.
-func NewClient(baseURL string) *Client {
-	return &Client{baseURL: baseURL, http: &http.Client{Timeout: 120 * time.Second}}
+// NewClient returns a Client targeting the AI service base URL. token is sent as
+// a shared internal secret so the AI service can reject foreign callers.
+func NewClient(baseURL, token string) *Client {
+	return &Client{baseURL: baseURL, token: token, http: &http.Client{Timeout: 120 * time.Second}}
 }
 
 type ingestRequest struct {
@@ -43,6 +45,9 @@ func (c *Client) Ingest(ctx context.Context, documentID, workspaceID, text strin
 		return 0, err
 	}
 	req.Header.Set("Content-Type", "application/json")
+	if c.token != "" {
+		req.Header.Set("X-Internal-Token", c.token)
+	}
 
 	resp, err := c.http.Do(req)
 	if err != nil {

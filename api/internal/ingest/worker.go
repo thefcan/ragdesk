@@ -33,6 +33,7 @@ func (q *Queue) Enqueue(ctx context.Context, documentID string) error {
 // Worker consumes the ingestion queue.
 type Worker struct {
 	rdb   *redis.Client
+	queue *Queue
 	store *store.Store
 	ai    *ai.Client
 	log   *slog.Logger
@@ -40,12 +41,13 @@ type Worker struct {
 
 // NewWorker builds a Worker.
 func NewWorker(rdb *redis.Client, st *store.Store, aiClient *ai.Client, log *slog.Logger) *Worker {
-	return &Worker{rdb: rdb, store: st, ai: aiClient, log: log}
+	return &Worker{rdb: rdb, queue: NewQueue(rdb), store: st, ai: aiClient, log: log}
 }
 
-// Run consumes the queue until ctx is cancelled.
+// Run recovers any pending work, then consumes the queue until ctx is cancelled.
 func (w *Worker) Run(ctx context.Context) {
 	w.log.Info("ingest worker started")
+	w.Recover(ctx)
 	for {
 		if ctx.Err() != nil {
 			w.log.Info("ingest worker stopped")
@@ -65,6 +67,24 @@ func (w *Worker) Run(ctx context.Context) {
 			continue
 		}
 		w.Process(ctx, res[1])
+	}
+}
+
+// Recover re-enqueues documents left pending (e.g. by a crash). Ingestion is
+// idempotent, so re-processing an in-flight document is harmless.
+func (w *Worker) Recover(ctx context.Context) {
+	ids, err := w.store.PendingDocumentIDs(ctx)
+	if err != nil {
+		w.log.Error("ingest recover", slog.Any("err", err))
+		return
+	}
+	for _, id := range ids {
+		if err := w.queue.Enqueue(ctx, id); err != nil {
+			w.log.Warn("ingest recover enqueue", slog.String("document_id", id), slog.Any("err", err))
+		}
+	}
+	if len(ids) > 0 {
+		w.log.Info("requeued pending documents", slog.Int("count", len(ids)))
 	}
 }
 

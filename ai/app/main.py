@@ -7,7 +7,7 @@ RAG chat arrives in Phase 3.
 import logging
 
 import psycopg
-from fastapi import FastAPI, HTTPException
+from fastapi import FastAPI, Header, HTTPException
 from fastapi.responses import JSONResponse
 from pydantic import BaseModel
 
@@ -69,8 +69,13 @@ class IngestResponse(BaseModel):
 
 
 @app.post("/ingest", response_model=IngestResponse)
-def ingest(req: IngestRequest) -> IngestResponse:
+def ingest(
+    req: IngestRequest,
+    x_internal_token: str | None = Header(default=None),
+) -> IngestResponse:
     """Chunk, embed and store a document's text. Idempotent per document."""
+    if settings.internal_token and x_internal_token != settings.internal_token:
+        raise HTTPException(status_code=401, detail="unauthorized")
     try:
         count = ingest_document(req.document_id, req.workspace_id, req.text)
     except Exception as exc:
