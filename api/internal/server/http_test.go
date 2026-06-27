@@ -9,6 +9,7 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"os"
+	"strings"
 	"testing"
 	"time"
 
@@ -37,7 +38,7 @@ func newTestServer(t *testing.T) http.Handler {
 		t.Fatalf("migrate: %v", err)
 	}
 	if _, err := pool.Exec(context.Background(),
-		`TRUNCATE users, workspaces, workspace_members RESTART IDENTITY CASCADE`); err != nil {
+		`TRUNCATE users, workspaces, workspace_members, documents, chunks RESTART IDENTITY CASCADE`); err != nil {
 		t.Fatalf("truncate: %v", err)
 	}
 
@@ -112,5 +113,25 @@ func TestAuthAndWorkspaceHTTP(t *testing.T) {
 	// Create a second workspace -> 201.
 	if code, _ := doJSON(t, h, http.MethodPost, "/workspaces", token, map[string]any{"name": "Team Space"}); code != http.StatusCreated {
 		t.Fatalf("create workspace status = %d, want 201", code)
+	}
+}
+
+func TestDocumentSizeLimit(t *testing.T) {
+	h := newTestServer(t)
+	_, body := doJSON(t, h, http.MethodPost, "/auth/register", "", map[string]any{
+		"email": "alice@example.com", "password": "supersecret",
+	})
+	token, _ := body["token"].(string)
+	ws, _ := body["workspace"].(map[string]any)
+	wsID, _ := ws["id"].(string)
+	if token == "" || wsID == "" {
+		t.Fatalf("register did not return token/workspace: %v", body)
+	}
+
+	big := strings.Repeat("a", (1<<20)+1) // just over 1 MiB
+	code, _ := doJSON(t, h, http.MethodPost, "/workspaces/"+wsID+"/documents", token,
+		map[string]any{"title": "big", "content": big})
+	if code != http.StatusRequestEntityTooLarge {
+		t.Fatalf("oversized document status = %d, want 413", code)
 	}
 }

@@ -73,3 +73,45 @@ func TestDocumentTenantIsolation(t *testing.T) {
 		t.Fatalf("list isolation: want ErrNotFound, got %v", err)
 	}
 }
+
+func TestReingestDocument(t *testing.T) {
+	st := newTestStore(t)
+	ctx := context.Background()
+
+	alice, err := st.CreateUser(ctx, "alice@example.com", "h")
+	if err != nil {
+		t.Fatalf("alice: %v", err)
+	}
+	bob, err := st.CreateUser(ctx, "bob@example.com", "h")
+	if err != nil {
+		t.Fatalf("bob: %v", err)
+	}
+	ws, err := st.CreateWorkspace(ctx, alice.ID, "WS", "ws")
+	if err != nil {
+		t.Fatalf("workspace: %v", err)
+	}
+	doc, err := st.CreateDocument(ctx, alice.ID, ws.ID, "D", "text")
+	if err != nil {
+		t.Fatalf("document: %v", err)
+	}
+	if err := st.MarkDocumentReady(ctx, doc.ID, 3); err != nil {
+		t.Fatalf("mark ready: %v", err)
+	}
+
+	// Owner resets it back to pending.
+	if err := st.ReingestDocument(ctx, alice.ID, ws.ID, doc.ID); err != nil {
+		t.Fatalf("reingest: %v", err)
+	}
+	docs, err := st.ListDocuments(ctx, alice.ID, ws.ID)
+	if err != nil {
+		t.Fatalf("list: %v", err)
+	}
+	if docs[0].Status != "pending" {
+		t.Fatalf("status = %q, want pending", docs[0].Status)
+	}
+
+	// A non-member cannot re-ingest it.
+	if err := st.ReingestDocument(ctx, bob.ID, ws.ID, doc.ID); !errors.Is(err, store.ErrNotFound) {
+		t.Fatalf("isolation: want ErrNotFound, got %v", err)
+	}
+}

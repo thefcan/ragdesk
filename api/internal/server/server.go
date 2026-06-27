@@ -77,6 +77,7 @@ func (s *Server) routes() {
 		r.Post("/workspaces/{id}/members", s.handleAddMember)
 		r.Get("/workspaces/{id}/documents", s.handleListDocuments)
 		r.Post("/workspaces/{id}/documents", s.handleCreateDocument)
+		r.Post("/workspaces/{id}/documents/{docId}/reingest", s.handleReingestDocument)
 	})
 }
 
