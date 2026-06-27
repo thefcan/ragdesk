@@ -12,6 +12,7 @@ import (
 	"github.com/redis/go-redis/v9"
 
 	"github.com/thefcan/ragdesk/api/internal/auth"
+	"github.com/thefcan/ragdesk/api/internal/ingest"
 	"github.com/thefcan/ragdesk/api/internal/store"
 )
 
@@ -21,6 +22,7 @@ type Server struct {
 	store   *store.Store
 	rdb     *redis.Client
 	issuer  *auth.Issuer
+	queue   *ingest.Queue
 	origins []string
 	log     *slog.Logger
 }
@@ -32,6 +34,7 @@ func New(st *store.Store, rdb *redis.Client, iss *auth.Issuer, corsOrigins []str
 		store:   st,
 		rdb:     rdb,
 		issuer:  iss,
+		queue:   ingest.NewQueue(rdb),
 		origins: corsOrigins,
 		log:     log,
 	}
@@ -45,7 +48,7 @@ func (s *Server) routes() {
 	// middleware.RealIP is intentionally omitted: it trusts client-supplied
 	// X-Forwarded-For / X-Real-IP headers and is spoofable (chi GHSA advisories).
 	r.Use(middleware.Recoverer)
-	r.Use(middleware.Timeout(15 * time.Second))
+	r.Use(middleware.Timeout(60 * time.Second))
 	r.Use(cors.Handler(cors.Options{
 		AllowedOrigins:   s.origins,
 		AllowedMethods:   []string{http.MethodGet, http.MethodPost, http.MethodPut, http.MethodDelete, http.MethodOptions},
@@ -72,6 +75,8 @@ func (s *Server) routes() {
 		r.Get("/workspaces/{id}", s.handleGetWorkspace)
 		r.Get("/workspaces/{id}/members", s.handleListMembers)
 		r.Post("/workspaces/{id}/members", s.handleAddMember)
+		r.Get("/workspaces/{id}/documents", s.handleListDocuments)
+		r.Post("/workspaces/{id}/documents", s.handleCreateDocument)
 	})
 }
 

@@ -1,5 +1,5 @@
-// Command ragdesk-api is the Go core service: it owns tenancy, billing and
-// metering, and fronts the Python AI service.
+// Command ragdesk-api is the Go core service: it owns tenancy, documents,
+// billing and metering, and fronts the Python AI service.
 package main
 
 import (
@@ -16,15 +16,15 @@ import (
 	"github.com/jackc/pgx/v5/pgxpool"
 	"github.com/redis/go-redis/v9"
 
+	"github.com/thefcan/ragdesk/api/internal/ai"
 	"github.com/thefcan/ragdesk/api/internal/auth"
 	"github.com/thefcan/ragdesk/api/internal/config"
+	"github.com/thefcan/ragdesk/api/internal/ingest"
 	"github.com/thefcan/ragdesk/api/internal/server"
 	"github.com/thefcan/ragdesk/api/internal/store"
 )
 
 func main() {
-	// Self health-check mode used by the container HEALTHCHECK: the distroless
-	// image ships no shell or curl, so the binary probes itself.
 	if len(os.Args) > 1 && os.Args[1] == "healthcheck" {
 		os.Exit(healthcheck())
 	}
@@ -70,6 +70,12 @@ func main() {
 
 	issuer := auth.NewIssuer(cfg.JWTSecret, cfg.JWTTTL)
 
+	// Async ingestion worker.
+	aiClient := ai.NewClient(cfg.AIServiceURL)
+	worker := ingest.NewWorker(rdb, st, aiClient, log)
+	workerCtx, stopWorker := context.WithCancel(context.Background())
+	go worker.Run(workerCtx)
+
 	srv := &http.Server{
 		Addr:              ":" + cfg.Port,
 		Handler:           server.New(st, rdb, issuer, cfg.CORSAllowedOrigins, log).Handler(),
@@ -89,6 +95,7 @@ func main() {
 	<-stop
 
 	log.Info("api shutting down")
+	stopWorker()
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer cancel()
 	if err := srv.Shutdown(ctx); err != nil {
@@ -97,8 +104,6 @@ func main() {
 	log.Info("api stopped")
 }
 
-// healthcheck performs an HTTP probe against the local liveness endpoint and
-// returns a process exit code (0 healthy, 1 unhealthy).
 func healthcheck() int {
 	port := os.Getenv("PORT")
 	if port == "" {
