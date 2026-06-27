@@ -87,8 +87,14 @@ func (s *Server) handleLogin(w http.ResponseWriter, r *http.Request) {
 	req.Email = strings.TrimSpace(strings.ToLower(req.Email))
 
 	user, err := s.store.GetUserByEmail(r.Context(), req.Email)
-	if err != nil || !auth.CheckPassword(user.PasswordHash, req.Password) {
-		// Identical response whether or not the account exists.
+	if err != nil {
+		// Run a throwaway comparison so response time does not reveal whether
+		// the account exists (constant-time login).
+		auth.DummyCompare(req.Password)
+		writeError(w, http.StatusUnauthorized, "invalid credentials")
+		return
+	}
+	if !auth.CheckPassword(user.PasswordHash, req.Password) {
 		writeError(w, http.StatusUnauthorized, "invalid credentials")
 		return
 	}

@@ -64,3 +64,14 @@ func (i *Issuer) Verify(tokenString string) (string, error) {
 	}
 	return claims.Subject, nil
 }
+
+// dummyHash equalises login timing: comparing against it costs the same as a
+// real bcrypt comparison, so a missing account does not respond faster and
+// leak its (non-)existence.
+var dummyHash, _ = bcrypt.GenerateFromPassword([]byte("ragdesk-timing-equaliser"), bcrypt.DefaultCost)
+
+// DummyCompare performs a throwaway bcrypt comparison to keep login response
+// time constant whether or not the account exists.
+func DummyCompare(password string) {
+	_ = bcrypt.CompareHashAndPassword(dummyHash, []byte(password))
+}
