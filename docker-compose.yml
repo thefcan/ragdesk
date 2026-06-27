@@ -62,6 +62,7 @@ services:
       DATABASE_URL: postgres://ragdesk:ragdesk@postgres:5432/ragdesk
       # Ollama runs on the host (free, local). host-gateway bridges into it.
       OLLAMA_BASE_URL: http://host.docker.internal:11434
+      EMBEDDING_PROVIDER: ${EMBEDDING_PROVIDER:-ollama}
       RAGDESK_ENV: docker
     ports:
       - "8000:8000"
