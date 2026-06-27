@@ -1,17 +1,18 @@
 """ragdesk AI service.
 
-Phase 0 exposes liveness, readiness and version probes. Later phases add the
-document ingestion pipeline (chunk -> embed -> pgvector) and provider-agnostic
-RAG chat.
+Probes plus the document ingestion pipeline (chunk -> embed -> pgvector).
+RAG chat arrives in Phase 3.
 """
 
 import logging
 
 import psycopg
-from fastapi import FastAPI
+from fastapi import FastAPI, HTTPException
 from fastapi.responses import JSONResponse
+from pydantic import BaseModel
 
 from app.config import settings
+from app.ingest import ingest_document
 
 logging.basicConfig(
     level=logging.INFO,
@@ -55,3 +56,24 @@ def readyz() -> JSONResponse:
         status_code=status_code,
         content={"status": state, "service": "ragdesk-ai", "checks": checks},
     )
+
+
+class IngestRequest(BaseModel):
+    document_id: str
+    workspace_id: str
+    text: str
+
+
+class IngestResponse(BaseModel):
+    chunk_count: int
+
+
+@app.post("/ingest", response_model=IngestResponse)
+def ingest(req: IngestRequest) -> IngestResponse:
+    """Chunk, embed and store a document's text. Idempotent per document."""
+    try:
+        count = ingest_document(req.document_id, req.workspace_id, req.text)
+    except Exception as exc:
+        logger.exception("ingest failed for document %s", req.document_id)
+        raise HTTPException(status_code=500, detail="ingestion failed") from exc
+    return IngestResponse(chunk_count=count)

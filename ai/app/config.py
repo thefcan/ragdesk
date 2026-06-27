@@ -8,9 +8,17 @@ class Settings(BaseSettings):
 
     port: int = 8000
     database_url: str = "postgresql://ragdesk:ragdesk@localhost:5432/ragdesk"
-    # Provider-agnostic LLM: defaults to a free, local Ollama instance.
-    ollama_base_url: str = "http://localhost:11434"
     ragdesk_env: str = "development"
+
+    # Provider-agnostic embeddings. "ollama" calls a local model; "fake" yields
+    # deterministic vectors so tests and CI need no model server.
+    embedding_provider: str = "ollama"
+    ollama_base_url: str = "http://localhost:11434"
+    embedding_model: str = "nomic-embed-text"
+    embedding_dim: int = 768
+
+    chunk_size: int = 1000
+    chunk_overlap: int = 150
 
 
 settings = Settings()
