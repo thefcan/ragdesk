@@ -8,6 +8,10 @@ import (
 	"time"
 )
 
+// DefaultJWTSecret is the development-only fallback signing secret. Using it
+// outside development is rejected (production) or warned about (callers).
+const DefaultJWTSecret = "dev-secret-change-me"
+
 // Config holds the settings the API needs to run.
 type Config struct {
 	Port               string
@@ -28,7 +32,7 @@ func Load() (Config, error) {
 		DatabaseURL:        getenv("DATABASE_URL", "postgres://ragdesk:ragdesk@localhost:5432/ragdesk?sslmode=disable"),
 		RedisURL:           getenv("REDIS_URL", "redis://localhost:6379/0"),
 		AIServiceURL:       getenv("AI_SERVICE_URL", "http://localhost:8000"),
-		JWTSecret:          getenv("JWT_SECRET", "dev-secret-change-me"),
+		JWTSecret:          getenv("JWT_SECRET", DefaultJWTSecret),
 		JWTTTL:             24 * time.Hour,
 		CORSAllowedOrigins: splitAndTrim(getenv("CORS_ALLOWED_ORIGINS", "http://localhost:3000")),
 		Env:                getenv("RAGDESK_ENV", "development"),
@@ -41,6 +45,9 @@ func Load() (Config, error) {
 	}
 	if cfg.JWTSecret == "" {
 		return Config{}, fmt.Errorf("JWT_SECRET is required")
+	}
+	if cfg.JWTSecret == DefaultJWTSecret && cfg.Env == "production" {
+		return Config{}, fmt.Errorf("JWT_SECRET must be set when RAGDESK_ENV=production")
 	}
 	return cfg, nil
 }

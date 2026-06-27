@@ -5,6 +5,8 @@ import (
 	"log/slog"
 	"net/http"
 	"time"
+
+	"github.com/go-chi/chi/v5/middleware"
 )
 
 type healthResponse struct {
@@ -53,6 +55,7 @@ func (s *Server) requestLogger(next http.Handler) http.Handler {
 		ww := &statusWriter{ResponseWriter: w, status: http.StatusOK}
 		next.ServeHTTP(ww, r)
 		s.log.Info("request",
+			slog.String("request_id", middleware.GetReqID(r.Context())),
 			slog.String("method", r.Method),
 			slog.String("path", r.URL.Path),
 			slog.Int("status", ww.status),

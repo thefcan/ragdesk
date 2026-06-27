@@ -37,6 +37,10 @@ func main() {
 		os.Exit(1)
 	}
 
+	if cfg.JWTSecret == config.DefaultJWTSecret {
+		log.Warn("using the default JWT secret; set JWT_SECRET outside development")
+	}
+
 	db, err := pgxpool.New(context.Background(), cfg.DatabaseURL)
 	if err != nil {
 		log.Error("postgres pool", slog.Any("err", err))
