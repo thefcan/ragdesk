@@ -60,6 +60,7 @@ func (s *Server) routes() {
 	r.Get("/version", s.handleVersion)
 
 	r.Route("/auth", func(r chi.Router) {
+		r.Use(s.rateLimit(10, time.Minute))
 		r.Post("/register", s.handleRegister)
 		r.Post("/login", s.handleLogin)
 	})
