@@ -62,3 +62,26 @@ export function createWorkspace(token: string, name: string) {
     body: JSON.stringify({ name }),
   }).then(handle<Workspace>);
 }
+
+export type Document = {
+  id: string;
+  workspace_id: string;
+  title: string;
+  status: string;
+  chunk_count: number;
+  created_at: string;
+};
+
+export function listDocuments(token: string, workspaceId: string) {
+  return fetch(`${API_URL}/workspaces/${workspaceId}/documents`, {
+    headers: headers(token),
+  }).then(handle<{ documents: Document[] }>);
+}
+
+export function createDocument(token: string, workspaceId: string, title: string, content: string) {
+  return fetch(`${API_URL}/workspaces/${workspaceId}/documents`, {
+    method: "POST",
+    headers: headers(token),
+    body: JSON.stringify({ title, content }),
+  }).then(handle<Document>);
+}

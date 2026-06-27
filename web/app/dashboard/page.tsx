@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
+import Link from "next/link";
 import { listWorkspaces, createWorkspace, ApiError, type Workspace } from "@/lib/api";
 import { getToken, clearToken } from "@/lib/auth";
 
@@ -119,9 +120,10 @@ export default function DashboardPage() {
         ) : (
           <div className="mt-8 grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
             {workspaces.map((ws) => (
-              <div
+              <Link
                 key={ws.id}
-                className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm transition hover:shadow-md"
+                href={`/workspaces/${ws.id}`}
+                className="block rounded-2xl border border-slate-200 bg-white p-5 shadow-sm transition hover:shadow-md"
               >
                 <div className="flex items-center gap-3">
                   <div
@@ -144,7 +146,7 @@ export default function DashboardPage() {
                     {new Date(ws.created_at).toLocaleDateString()}
                   </span>
                 </div>
-              </div>
+              </Link>
             ))}
           </div>
         )}
