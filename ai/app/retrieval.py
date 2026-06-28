@@ -10,12 +10,20 @@ def _to_vector_literal(embedding: list[float]) -> str:
     return "[" + ",".join(str(x) for x in embedding) + "]"
 
 
-def retrieve(workspace_id: str, question: str, k: int) -> list[dict]:
+def retrieve(
+    workspace_id: str,
+    question: str,
+    k: int,
+    max_distance: float | None = None,
+) -> list[dict]:
     """Return up to k chunks from the workspace ranked by cosine similarity.
 
-    Tenant isolation is enforced in the query: only chunks belonging to
-    workspace_id are considered.
+    Tenant isolation is enforced in the query (only this workspace's chunks).
+    Chunks farther than max_distance are dropped, so irrelevant questions yield
+    no sources rather than noise.
     """
+    if max_distance is None:
+        max_distance = settings.retrieval_max_distance
     embedding = get_embedder().embed([question])[0]
     vec = _to_vector_literal(embedding)
     with psycopg.connect(settings.database_url) as conn:
@@ -24,10 +32,10 @@ def retrieve(workspace_id: str, question: str, k: int) -> list[dict]:
             SELECT c.document_id::text, d.title, c.content
             FROM chunks c
             JOIN documents d ON d.id = c.document_id
-            WHERE c.workspace_id = %s
+            WHERE c.workspace_id = %s AND (c.embedding <=> %s::vector) < %s
             ORDER BY c.embedding <=> %s::vector
             LIMIT %s
             """,
-            (workspace_id, vec, k),
+            (workspace_id, vec, max_distance, vec, k),
         ).fetchall()
     return [{"document_id": r[0], "title": r[1], "content": r[2]} for r in rows]

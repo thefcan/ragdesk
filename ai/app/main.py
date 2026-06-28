@@ -102,7 +102,9 @@ def chat(
     if settings.internal_token and x_internal_token != settings.internal_token:
         raise HTTPException(status_code=401, detail="unauthorized")
 
-    sources = retrieve(req.workspace_id, req.question, settings.retrieval_k)
+    sources = retrieve(
+        req.workspace_id, req.question, settings.retrieval_k, settings.retrieval_max_distance
+    )
     prompt = build_prompt(sources, req.question)
 
     def generate() -> Iterator[str]:

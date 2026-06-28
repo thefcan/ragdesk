@@ -54,3 +54,22 @@ def test_retrieval_is_tenant_scoped():
     assert results, "expected at least one chunk"
     # Only workspace A's document is ever returned.
     assert all(r["title"] == "Workspace A Handbook" for r in results)
+
+
+@pytest.mark.skipif(not os.getenv("DATABASE_URL"), reason="DATABASE_URL not set")
+def test_retrieval_distance_threshold_filters():
+    settings.embedding_provider = "fake"
+    with psycopg.connect(settings.database_url, autocommit=True) as conn:
+        for stmt in SCHEMA.split(";"):
+            if stmt.strip():
+                conn.execute(stmt)
+        conn.execute(
+            "INSERT INTO documents (id, workspace_id, title) VALUES (%s, %s, %s)",
+            (DOC_A, WS_A, "Workspace A Handbook"),
+        )
+    ingest_document(DOC_A, WS_A, "Alpha content about remote work. " * 30)
+
+    # An impossibly strict threshold drops everything (nothing is < 0 distance).
+    assert retrieve(WS_A, "remote work", k=4, max_distance=0.0) == []
+    # A generous threshold returns chunks.
+    assert retrieve(WS_A, "remote work", k=4, max_distance=2.0)

@@ -26,6 +26,8 @@ class Settings(BaseSettings):
     chat_provider: str = "ollama"
     chat_model: str = "llama3.2:3b"
     retrieval_k: int = 4
+    # Max cosine distance for a chunk to count as relevant (0 = identical).
+    retrieval_max_distance: float = 0.8
 
 
 settings = Settings()
