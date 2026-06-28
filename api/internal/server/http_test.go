@@ -182,3 +182,24 @@ func TestChatStreaming(t *testing.T) {
 		t.Fatalf("foreign workspace chat status = %d, want 404", rec2.Code)
 	}
 }
+
+func TestChatQuestionSizeLimit(t *testing.T) {
+	h := newTestServer(t, "http://unused")
+	_, body := doJSON(t, h, http.MethodPost, "/auth/register", "", map[string]any{
+		"email": "alice@example.com", "password": "supersecret",
+	})
+	token, _ := body["token"].(string)
+	ws, _ := body["workspace"].(map[string]any)
+	wsID, _ := ws["id"].(string)
+
+	big := strings.Repeat("q", (4<<10)+1) // just over 4 KiB
+	req := httptest.NewRequest(http.MethodPost, "/workspaces/"+wsID+"/chat",
+		strings.NewReader(`{"question":"`+big+`"}`))
+	req.Header.Set("Authorization", "Bearer "+token)
+	req.Header.Set("Content-Type", "application/json")
+	rec := httptest.NewRecorder()
+	h.ServeHTTP(rec, req)
+	if rec.Code != http.StatusRequestEntityTooLarge {
+		t.Fatalf("oversized question status = %d, want 413", rec.Code)
+	}
+}

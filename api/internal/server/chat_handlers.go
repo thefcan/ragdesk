@@ -12,6 +12,9 @@ import (
 	"github.com/thefcan/ragdesk/api/internal/store"
 )
 
+// maxQuestionBytes caps a chat question to bound prompt size and LLM cost.
+const maxQuestionBytes = 4 << 10 // 4 KiB
+
 func (s *Server) handleChat(w http.ResponseWriter, r *http.Request) {
 	userID := userIDFrom(r.Context())
 	workspaceID := chi.URLParam(r, "id")
@@ -26,16 +29,26 @@ func (s *Server) handleChat(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	r.Body = http.MaxBytesReader(w, r.Body, maxQuestionBytes+1024)
 	var req struct {
 		Question string `json:"question"`
 	}
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		var maxErr *http.MaxBytesError
+		if errors.As(err, &maxErr) {
+			writeError(w, http.StatusRequestEntityTooLarge, "question too long (max 4 KB)")
+			return
+		}
 		writeError(w, http.StatusBadRequest, "invalid JSON body")
 		return
 	}
 	req.Question = strings.TrimSpace(req.Question)
 	if req.Question == "" {
 		writeError(w, http.StatusBadRequest, "question is required")
+		return
+	}
+	if len(req.Question) > maxQuestionBytes {
+		writeError(w, http.StatusRequestEntityTooLarge, "question too long (max 4 KB)")
 		return
 	}
 

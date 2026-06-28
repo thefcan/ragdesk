@@ -1,6 +1,7 @@
 package server
 
 import (
+	"context"
 	"io"
 	"log/slog"
 	"net/http"
@@ -49,5 +50,40 @@ func TestRateLimit(t *testing.T) {
 	h.ServeHTTP(rec, req)
 	if rec.Code != http.StatusOK {
 		t.Fatalf("other IP: got %d, want 200", rec.Code)
+	}
+}
+
+func TestUserRateLimit(t *testing.T) {
+	mr, err := miniredis.Run()
+	if err != nil {
+		t.Fatalf("miniredis: %v", err)
+	}
+	t.Cleanup(mr.Close)
+
+	rdb := redis.NewClient(&redis.Options{Addr: mr.Addr()})
+	s := &Server{rdb: rdb, log: slog.New(slog.NewTextHandler(io.Discard, nil))}
+	h := s.userRateLimit(2, time.Minute)(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		w.WriteHeader(http.StatusOK)
+	}))
+
+	call := func(userID string) int {
+		req := httptest.NewRequest(http.MethodPost, "/workspaces/x/chat", nil)
+		req = req.WithContext(context.WithValue(req.Context(), userIDKey, userID))
+		rec := httptest.NewRecorder()
+		h.ServeHTTP(rec, req)
+		return rec.Code
+	}
+
+	for i := 0; i < 2; i++ {
+		if code := call("user-a"); code != http.StatusOK {
+			t.Fatalf("request %d: got %d, want 200", i+1, code)
+		}
+	}
+	if code := call("user-a"); code != http.StatusTooManyRequests {
+		t.Fatalf("3rd request: got %d, want 429", code)
+	}
+	// A different user is unaffected.
+	if code := call("user-b"); code != http.StatusOK {
+		t.Fatalf("other user: got %d, want 200", code)
 	}
 }
