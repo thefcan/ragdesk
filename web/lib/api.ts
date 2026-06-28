@@ -85,3 +85,51 @@ export function createDocument(token: string, workspaceId: string, title: string
     body: JSON.stringify({ title, content }),
   }).then(handle<Document>);
 }
+
+export type Source = { document_id: string; title: string; snippet: string };
+
+type ChatHandlers = {
+  onSources?: (sources: Source[]) => void;
+  onToken?: (token: string) => void;
+  onError?: (message: string) => void;
+};
+
+export async function chat(
+  token: string,
+  workspaceId: string,
+  question: string,
+  handlers: ChatHandlers,
+): Promise<void> {
+  const res = await fetch(`${API_URL}/workspaces/${workspaceId}/chat`, {
+    method: "POST",
+    headers: headers(token),
+    body: JSON.stringify({ question }),
+  });
+  if (!res.ok) {
+    const data = await res.json().catch(() => ({}));
+    throw new ApiError((data as { error?: string }).error ?? `chat failed (${res.status})`, res.status);
+  }
+  const reader = res.body?.getReader();
+  if (!reader) return;
+
+  const decoder = new TextDecoder();
+  let buffer = "";
+  for (;;) {
+    const { done, value } = await reader.read();
+    if (done) break;
+    buffer += decoder.decode(value, { stream: true });
+    const lines = buffer.split("\n");
+    buffer = lines.pop() ?? "";
+    for (const line of lines) {
+      if (!line.trim()) continue;
+      const event = JSON.parse(line) as {
+        type: string;
+        sources?: Source[];
+        content?: string;
+      };
+      if (event.type === "sources") handlers.onSources?.(event.sources ?? []);
+      else if (event.type === "token") handlers.onToken?.(event.content ?? "");
+      else if (event.type === "error") handlers.onError?.(event.content ?? "the assistant is unavailable");
+    }
+  }
+}
