@@ -22,5 +22,10 @@ class Settings(BaseSettings):
     chunk_size: int = 1000
     chunk_overlap: int = 150
 
+    # Provider-agnostic chat. "fake" yields a deterministic answer for tests/CI.
+    chat_provider: str = "ollama"
+    chat_model: str = "llama3.2:3b"
+    retrieval_k: int = 4
+
 
 settings = Settings()

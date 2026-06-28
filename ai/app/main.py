@@ -4,15 +4,19 @@ Probes plus the document ingestion pipeline (chunk -> embed -> pgvector).
 RAG chat arrives in Phase 3.
 """
 
+import json
 import logging
+from collections.abc import Iterator
 
 import psycopg
 from fastapi import FastAPI, Header, HTTPException
-from fastapi.responses import JSONResponse
+from fastapi.responses import JSONResponse, StreamingResponse
 from pydantic import BaseModel
 
+from app.chat import build_prompt, get_chat_provider
 from app.config import settings
 from app.ingest import ingest_document
+from app.retrieval import retrieve
 
 logging.basicConfig(
     level=logging.INFO,
@@ -82,3 +86,42 @@ def ingest(
         logger.exception("ingest failed for document %s", req.document_id)
         raise HTTPException(status_code=500, detail="ingestion failed") from exc
     return IngestResponse(chunk_count=count)
+
+
+class ChatRequest(BaseModel):
+    workspace_id: str
+    question: str
+
+
+@app.post("/chat")
+def chat(
+    req: ChatRequest,
+    x_internal_token: str | None = Header(default=None),
+) -> StreamingResponse:
+    """Retrieve relevant chunks and stream a grounded answer (NDJSON)."""
+    if settings.internal_token and x_internal_token != settings.internal_token:
+        raise HTTPException(status_code=401, detail="unauthorized")
+
+    sources = retrieve(req.workspace_id, req.question, settings.retrieval_k)
+    prompt = build_prompt(sources, req.question)
+
+    def generate() -> Iterator[str]:
+        seen: set[str] = set()
+        cited: list[dict] = []
+        for src in sources:
+            if src["document_id"] in seen:
+                continue
+            seen.add(src["document_id"])
+            cited.append(
+                {
+                    "document_id": src["document_id"],
+                    "title": src["title"],
+                    "snippet": src["content"][:200],
+                }
+            )
+        yield json.dumps({"type": "sources", "sources": cited}) + "\n"
+        for token in get_chat_provider().stream(prompt):
+            yield json.dumps({"type": "token", "content": token}) + "\n"
+        yield json.dumps({"type": "done"}) + "\n"
+
+    return StreamingResponse(generate(), media_type="application/x-ndjson")
