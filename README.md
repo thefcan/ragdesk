@@ -22,6 +22,10 @@ paid infrastructure.
 
 ## 🖼️ Demo
 
+**Ask your documents — grounded answers, with citations:**
+
+[![RAG chat](docs/screenshots/chat.png)](docs/screenshots/chat.png)
+
 | Landing | Workspaces dashboard — multi-tenant |
 |---|---|
 | [![Landing](docs/screenshots/landing.png)](docs/screenshots/landing.png) | [![Dashboard](docs/screenshots/dashboard.png)](docs/screenshots/dashboard.png) |
@@ -35,7 +39,7 @@ paid infrastructure.
 - 🏢 **Multi-tenant workspaces** — organizations, members, roles, hard data isolation
 - 🔐 **JWT auth** — register/login with bcrypt-hashed passwords, HS256 tokens
 - 📄 **Document ingestion** — upload → chunk → embed (Ollama) → `pgvector`, processed async via a Redis queue + worker
-- 💬 **RAG chat** *(Phase 3)* — streaming answers grounded in your documents, with citations
+- 💬 **RAG chat** — streaming answers grounded in your documents, **with citations** (pgvector cosine retrieval)
 - 🔌 **Provider-agnostic LLM** — Ollama (local/$0), Gemini/Groq (free tier), or Claude
 - 💳 **Billing & metering** *(Phase 4)* — Stripe subscriptions, usage limits, plan enforcement
 - 🔒 **Production hardening** — rate limiting, structured logs, health probes, govulncheck, CodeQL
@@ -105,6 +109,7 @@ curl -s localhost:8080/workspaces -H "Authorization: Bearer $TOKEN"
 | POST | `/workspaces/{id}/members` | Bearer | Add a member (owner/admin) |
 | GET | `/workspaces/{id}/documents` | Bearer | List a workspace's documents |
 | POST | `/workspaces/{id}/documents` | Bearer | Upload a document (async ingestion) |
+| POST | `/workspaces/{id}/chat` | Bearer | Ask a question — streaming RAG answer with citations |
 | GET | `/healthz` · `/readyz` · `/version` | public | Probes & build info |
 
 ## 🗺️ Roadmap
@@ -114,7 +119,7 @@ Built phase by phase, each shipped with tests, clean commits, Docker and green C
 - [x] **Phase 0 — Skeleton**: monorepo, docker-compose (Postgres+pgvector, Redis), Go & Python health services, CI, CodeQL, Dependabot
 - [x] **Phase 1 — Auth & multi-tenancy**: JWT register/login, workspaces, members, roles, tenant isolation, **Next.js web** (landing, auth, dashboard)
 - [x] **Phase 2 — Document ingestion**: upload → chunk → embed (Ollama) → `pgvector`, async Redis queue + worker
-- [ ] **Phase 3 — RAG chat**: retrieval + streaming answers + citations, provider-agnostic LLM
+- [x] **Phase 3 — RAG chat**: pgvector cosine retrieval + streaming answers + citations, provider-agnostic LLM
 - [ ] **Phase 4 — Billing & metering**: Stripe subscriptions, usage limits, rate limiting
 - [ ] **Phase 5 — Production polish**: OpenTelemetry, free-tier deploy
 
