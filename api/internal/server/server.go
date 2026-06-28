@@ -11,6 +11,7 @@ import (
 	"github.com/go-chi/cors"
 	"github.com/redis/go-redis/v9"
 
+	"github.com/thefcan/ragdesk/api/internal/ai"
 	"github.com/thefcan/ragdesk/api/internal/auth"
 	"github.com/thefcan/ragdesk/api/internal/ingest"
 	"github.com/thefcan/ragdesk/api/internal/store"
@@ -22,18 +23,20 @@ type Server struct {
 	store   *store.Store
 	rdb     *redis.Client
 	issuer  *auth.Issuer
+	ai      *ai.Client
 	queue   *ingest.Queue
 	origins []string
 	log     *slog.Logger
 }
 
 // New constructs a Server with production middleware and routes registered.
-func New(st *store.Store, rdb *redis.Client, iss *auth.Issuer, corsOrigins []string, log *slog.Logger) *Server {
+func New(st *store.Store, rdb *redis.Client, iss *auth.Issuer, aiClient *ai.Client, corsOrigins []string, log *slog.Logger) *Server {
 	s := &Server{
 		router:  chi.NewRouter(),
 		store:   st,
 		rdb:     rdb,
 		issuer:  iss,
+		ai:      aiClient,
 		queue:   ingest.NewQueue(rdb),
 		origins: corsOrigins,
 		log:     log,
@@ -78,6 +81,7 @@ func (s *Server) routes() {
 		r.Get("/workspaces/{id}/documents", s.handleListDocuments)
 		r.Post("/workspaces/{id}/documents", s.handleCreateDocument)
 		r.Post("/workspaces/{id}/documents/{docId}/reingest", s.handleReingestDocument)
+		r.Post("/workspaces/{id}/chat", s.handleChat)
 	})
 }
 

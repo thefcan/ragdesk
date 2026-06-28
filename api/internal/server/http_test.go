@@ -16,12 +16,13 @@ import (
 	"github.com/jackc/pgx/v5/pgxpool"
 	"github.com/redis/go-redis/v9"
 
+	"github.com/thefcan/ragdesk/api/internal/ai"
 	"github.com/thefcan/ragdesk/api/internal/auth"
 	"github.com/thefcan/ragdesk/api/internal/server"
 	"github.com/thefcan/ragdesk/api/internal/store"
 )
 
-func newTestServer(t *testing.T) http.Handler {
+func newTestServer(t *testing.T, aiURL string) http.Handler {
 	t.Helper()
 	dsn := os.Getenv("DATABASE_URL")
 	if dsn == "" {
@@ -46,7 +47,7 @@ func newTestServer(t *testing.T) http.Handler {
 	t.Cleanup(func() { _ = rdb.Close() })
 	iss := auth.NewIssuer("test-secret", time.Hour)
 	log := slog.New(slog.NewTextHandler(io.Discard, nil))
-	return server.New(st, rdb, iss, []string{"*"}, log).Handler()
+	return server.New(st, rdb, iss, ai.NewClient(aiURL, ""), []string{"*"}, log).Handler()
 }
 
 func doJSON(t *testing.T, h http.Handler, method, path, token string, body any) (int, map[string]any) {
@@ -72,7 +73,7 @@ func doJSON(t *testing.T, h http.Handler, method, path, token string, body any) 
 }
 
 func TestAuthAndWorkspaceHTTP(t *testing.T) {
-	h := newTestServer(t)
+	h := newTestServer(t, "http://unused")
 	cred := map[string]any{"email": "alice@example.com", "password": "supersecret"}
 
 	// Register -> 201 with a token and a bootstrapped workspace.
@@ -117,7 +118,7 @@ func TestAuthAndWorkspaceHTTP(t *testing.T) {
 }
 
 func TestDocumentSizeLimit(t *testing.T) {
-	h := newTestServer(t)
+	h := newTestServer(t, "http://unused")
 	_, body := doJSON(t, h, http.MethodPost, "/auth/register", "", map[string]any{
 		"email": "alice@example.com", "password": "supersecret",
 	})
@@ -133,5 +134,51 @@ func TestDocumentSizeLimit(t *testing.T) {
 		map[string]any{"title": "big", "content": big})
 	if code != http.StatusRequestEntityTooLarge {
 		t.Fatalf("oversized document status = %d, want 413", code)
+	}
+}
+
+func TestChatStreaming(t *testing.T) {
+	aiSrv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		w.Header().Set("Content-Type", "application/x-ndjson")
+		_, _ = io.WriteString(w, `{"type":"sources","sources":[{"document_id":"d","title":"Doc","snippet":"x"}]}`+"\n")
+		_, _ = io.WriteString(w, `{"type":"token","content":"Hello"}`+"\n")
+		_, _ = io.WriteString(w, `{"type":"done"}`+"\n")
+	}))
+	defer aiSrv.Close()
+
+	h := newTestServer(t, aiSrv.URL)
+	_, body := doJSON(t, h, http.MethodPost, "/auth/register", "", map[string]any{
+		"email": "alice@example.com", "password": "supersecret",
+	})
+	token, _ := body["token"].(string)
+	ws, _ := body["workspace"].(map[string]any)
+	wsID, _ := ws["id"].(string)
+	if token == "" || wsID == "" {
+		t.Fatalf("register did not return token/workspace: %v", body)
+	}
+
+	req := httptest.NewRequest(http.MethodPost, "/workspaces/"+wsID+"/chat", strings.NewReader(`{"question":"hi"}`))
+	req.Header.Set("Authorization", "Bearer "+token)
+	req.Header.Set("Content-Type", "application/json")
+	rec := httptest.NewRecorder()
+	h.ServeHTTP(rec, req)
+
+	if rec.Code != http.StatusOK {
+		t.Fatalf("chat status = %d", rec.Code)
+	}
+	out := rec.Body.String()
+	for _, want := range []string{`"type":"sources"`, `"content":"Hello"`, `"type":"done"`} {
+		if !strings.Contains(out, want) {
+			t.Fatalf("stream missing %q; got %s", want, out)
+		}
+	}
+
+	// A non-member must not be able to query the workspace.
+	req2 := httptest.NewRequest(http.MethodPost, "/workspaces/00000000-0000-0000-0000-000000000000/chat", strings.NewReader(`{"question":"hi"}`))
+	req2.Header.Set("Authorization", "Bearer "+token)
+	rec2 := httptest.NewRecorder()
+	h.ServeHTTP(rec2, req2)
+	if rec2.Code != http.StatusNotFound {
+		t.Fatalf("foreign workspace chat status = %d, want 404", rec2.Code)
 	}
 }

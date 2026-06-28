@@ -78,7 +78,7 @@ func main() {
 
 	srv := &http.Server{
 		Addr:              ":" + cfg.Port,
-		Handler:           server.New(st, rdb, issuer, cfg.CORSAllowedOrigins, log).Handler(),
+		Handler:           server.New(st, rdb, issuer, aiClient, cfg.CORSAllowedOrigins, log).Handler(),
 		ReadHeaderTimeout: 5 * time.Second,
 	}
 
