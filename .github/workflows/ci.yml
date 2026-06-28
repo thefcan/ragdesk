@@ -78,6 +78,7 @@ jobs:
     env:
       DATABASE_URL: postgresql://ragdesk:ragdesk@localhost:5432/ragdesk_test
       EMBEDDING_PROVIDER: fake
+      CHAT_PROVIDER: fake
     steps:
       - uses: actions/checkout@v7
       - uses: actions/setup-python@v6
