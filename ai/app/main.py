@@ -17,6 +17,7 @@ from app.chat import build_prompt, get_chat_provider
 from app.config import settings
 from app.ingest import ingest_document
 from app.retrieval import retrieve
+from app.telemetry import setup_tracing
 
 logging.basicConfig(
     level=logging.INFO,
@@ -27,6 +28,10 @@ logger = logging.getLogger("ragdesk-ai")
 VERSION = "dev"
 
 app = FastAPI(title="ragdesk-ai", version="0.1.0")
+
+# Optional distributed tracing (no-op unless OTEL_EXPORTER_OTLP_ENDPOINT is set).
+if setup_tracing(app):
+    logger.info("opentelemetry tracing enabled")
 
 
 @app.get("/healthz")

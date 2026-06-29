@@ -4,3 +4,7 @@ pydantic-settings==2.14.2
 psycopg[binary]==3.3.4
 pgvector==0.4.1
 httpx==0.28.1
+opentelemetry-sdk==1.43.0
+opentelemetry-exporter-otlp-proto-http==1.43.0
+opentelemetry-instrumentation-fastapi==0.64b0
+opentelemetry-instrumentation-psycopg==0.64b0
