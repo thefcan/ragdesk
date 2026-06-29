@@ -48,7 +48,8 @@ paid infrastructure.
 - 🔌 **Provider-agnostic LLM** — Ollama (local/$0), Gemini/Groq (free tier), or Claude
 - 💳 **Billing & metering** — Stripe subscriptions (test mode), per-workspace usage metering, plan limits enforced with `402 Payment Required`; runs $0 with a dev-mode fallback
 - 🔒 **Production hardening** — rate limiting, structured logs, health probes, govulncheck, CodeQL
-- 🐳 **Cloud-native** — multi-stage Docker images, `docker compose up`, GitHub Actions CI
+- 🔭 **Observability** — optional OpenTelemetry tracing across web → API → AI → Postgres (no-op until configured)
+- 🐳 **Cloud-native** — multi-stage Docker images, `docker compose up`, GitHub Actions **CI + CD** (images to GHCR)
 
 ## 🏗️ Architecture
 
@@ -74,7 +75,8 @@ See [`docs/architecture.md`](docs/architecture.md) for the full design.
 | AI service | Python, FastAPI, pgvector, Ollama |
 | Data | PostgreSQL 16 + pgvector, Redis 7 |
 | Billing | Stripe (test mode) |
-| Infra | Docker (multi-stage, distroless), docker-compose, GitHub Actions, CodeQL |
+| Observability | OpenTelemetry (OTLP), Jaeger |
+| Infra | Docker (multi-stage, distroless), docker-compose, GitHub Actions (CI + CD → GHCR), CodeQL |
 
 ## 🚀 Quickstart
 
@@ -158,7 +160,7 @@ Built phase by phase, each shipped with tests, clean commits, Docker and green C
 - [x] **Phase 2 — Document ingestion**: upload → chunk → embed (Ollama) → `pgvector`, async Redis queue + worker
 - [x] **Phase 3 — RAG chat**: pgvector cosine retrieval + streaming answers + citations, provider-agnostic LLM
 - [x] **Phase 4 — Billing & metering**: Stripe subscriptions (test mode), per-workspace usage metering, plan-limit enforcement (`402`), $0 dev mode
-- [~] **Phase 5 — Delivery & deploy**: **CD to GHCR** + one-click **Render Blueprint** ✅ · OpenTelemetry tracing *(next)*
+- [x] **Phase 5 — Delivery, deploy & observability**: **CD to GHCR**, one-click **Render Blueprint**, **OpenTelemetry** tracing (web → API → AI → Postgres)
 
 ## ☁️ Deploy
 
@@ -170,6 +172,19 @@ the free tier — Postgres, Redis and the shared secrets are wired automatically
 
 See **[`docs/deploy.md`](docs/deploy.md)** for the full guide (Render, Fly.io,
 Vercel, or your own `docker compose`).
+
+## 🔭 Observability
+
+Both services emit **OpenTelemetry** traces — a no-op until
+`OTEL_EXPORTER_OTLP_ENDPOINT` is set, so the default run pays nothing. The Go API
+instruments inbound HTTP, the outbound call to the AI service, and Postgres
+queries; the Python service continues the same trace through FastAPI and its DB
+calls. A request shows up as one connected trace: **web → API → AI → Postgres**.
+
+```bash
+# View traces locally in Jaeger (http://localhost:16686)
+OTEL_EXPORTER_OTLP_ENDPOINT=http://jaeger:4318 docker compose --profile observability up
+```
 
 ## 💸 Runs on $0
 
