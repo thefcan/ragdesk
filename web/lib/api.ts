@@ -129,6 +129,20 @@ export function devConfirm(token: string, workspaceId: string, plan: string) {
   }).then(handle<{ plan: string; status: string }>);
 }
 
+export function portal(token: string, workspaceId: string) {
+  return fetch(`${API_URL}/workspaces/${workspaceId}/billing/portal`, {
+    method: "POST",
+    headers: headers(token),
+  }).then(handle<{ url: string }>);
+}
+
+export function devCancel(token: string, workspaceId: string) {
+  return fetch(`${API_URL}/workspaces/${workspaceId}/billing/dev-cancel`, {
+    method: "POST",
+    headers: headers(token),
+  }).then(handle<{ plan: string; status: string }>);
+}
+
 export type Source = { document_id: string; title: string; snippet: string };
 
 type ChatHandlers = {

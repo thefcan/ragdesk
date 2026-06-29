@@ -3,7 +3,15 @@
 import { useCallback, useEffect, useState } from "react";
 import { useParams, useRouter } from "next/navigation";
 import Link from "next/link";
-import { getBilling, checkout, devConfirm, ApiError, type Billing } from "@/lib/api";
+import {
+  getBilling,
+  checkout,
+  devConfirm,
+  portal,
+  devCancel,
+  ApiError,
+  type Billing,
+} from "@/lib/api";
 import { getToken, clearToken } from "@/lib/auth";
 
 function UsageBar({ label, used, limit }: { label: string; used: number; limit: number }) {
@@ -96,6 +104,36 @@ export default function BillingPage() {
       });
   }
 
+  function onManage() {
+    const token = getToken();
+    if (!token) return;
+    setBusy(true);
+    setError("");
+    if (billing?.billing_enabled) {
+      // Stripe billing portal: manage card / cancel.
+      portal(token, workspaceId)
+        .then(({ url }) => {
+          window.location.href = url;
+        })
+        .catch((err: unknown) => {
+          setError(err instanceof Error ? err.message : "could not open the billing portal");
+          setBusy(false);
+        });
+    } else {
+      // Dev mode: cancel locally (portal stand-in).
+      devCancel(token, workspaceId)
+        .then(() => {
+          setNotice("Subscription canceled.");
+          setBusy(false);
+          load();
+        })
+        .catch((err: unknown) => {
+          setError(err instanceof Error ? err.message : "cancel failed");
+          setBusy(false);
+        });
+    }
+  }
+
   function onLogout() {
     clearToken();
     router.push("/login");
@@ -169,6 +207,17 @@ export default function BillingPage() {
                   limit={billing.limits.chat_messages}
                 />
               </div>
+              {billing.plan !== "free" && isOwner && (
+                <div className="mt-6 flex justify-end">
+                  <button
+                    onClick={onManage}
+                    disabled={busy}
+                    className="rounded-lg border border-slate-300 px-4 py-2 text-sm font-semibold text-slate-700 hover:bg-slate-100 disabled:opacity-60"
+                  >
+                    {billing.billing_enabled ? "Manage subscription" : "Cancel subscription"}
+                  </button>
+                </div>
+              )}
             </section>
 
             <div className="mt-8 grid gap-4 sm:grid-cols-2">
