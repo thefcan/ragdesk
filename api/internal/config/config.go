@@ -23,6 +23,14 @@ type Config struct {
 	JWTTTL             time.Duration
 	CORSAllowedOrigins []string
 	Env                string
+
+	// Billing (Stripe). When StripeSecretKey is empty the API runs in the
+	// $0 dev mode: upgrades go through a local dev-confirm endpoint instead
+	// of hosted checkout.
+	StripeSecretKey     string
+	StripePriceProID    string
+	StripeWebhookSecret string
+	WebBaseURL          string
 }
 
 // Load reads configuration from environment variables, applying
@@ -38,6 +46,11 @@ func Load() (Config, error) {
 		JWTTTL:             24 * time.Hour,
 		CORSAllowedOrigins: splitAndTrim(getenv("CORS_ALLOWED_ORIGINS", "http://localhost:3000")),
 		Env:                getenv("RAGDESK_ENV", "development"),
+
+		StripeSecretKey:     getenv("STRIPE_SECRET_KEY", ""),
+		StripePriceProID:    getenv("STRIPE_PRICE_PRO", ""),
+		StripeWebhookSecret: getenv("STRIPE_WEBHOOK_SECRET", ""),
+		WebBaseURL:          getenv("WEB_BASE_URL", "http://localhost:3000"),
 	}
 	if cfg.DatabaseURL == "" {
 		return Config{}, fmt.Errorf("DATABASE_URL is required")
@@ -50,6 +63,11 @@ func Load() (Config, error) {
 	}
 	if cfg.JWTSecret == DefaultJWTSecret && cfg.Env == "production" {
 		return Config{}, fmt.Errorf("JWT_SECRET must be set when RAGDESK_ENV=production")
+	}
+	// If Stripe is enabled, refuse to start without a webhook secret: unverified
+	// webhooks would let anyone grant themselves a paid plan.
+	if cfg.StripeSecretKey != "" && cfg.StripeWebhookSecret == "" {
+		return Config{}, fmt.Errorf("STRIPE_WEBHOOK_SECRET is required when STRIPE_SECRET_KEY is set")
 	}
 	return cfg, nil
 }

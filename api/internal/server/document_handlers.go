@@ -3,12 +3,14 @@ package server
 import (
 	"encoding/json"
 	"errors"
+	"fmt"
 	"log/slog"
 	"net/http"
 	"strings"
 
 	"github.com/go-chi/chi/v5"
 
+	"github.com/thefcan/ragdesk/api/internal/billing"
 	"github.com/thefcan/ragdesk/api/internal/store"
 )
 
@@ -41,6 +43,30 @@ func (s *Server) handleCreateDocument(w http.ResponseWriter, r *http.Request) {
 	if len(req.Content) > maxDocumentBytes {
 		writeError(w, http.StatusRequestEntityTooLarge, "document too large (max 1 MB)")
 		return
+	}
+
+	// Plan enforcement: cap stored documents per the workspace's plan.
+	ws, err := s.store.GetWorkspaceForUser(r.Context(), userID, workspaceID)
+	if err != nil {
+		if errors.Is(err, store.ErrNotFound) {
+			writeError(w, http.StatusNotFound, "workspace not found")
+			return
+		}
+		s.serverError(w, err)
+		return
+	}
+	plan := billing.PlanByID(ws.Plan)
+	if plan.MaxDocuments >= 0 {
+		count, err := s.store.CountDocuments(r.Context(), workspaceID)
+		if err != nil {
+			s.serverError(w, err)
+			return
+		}
+		if count >= plan.MaxDocuments {
+			writeError(w, http.StatusPaymentRequired,
+				fmt.Sprintf("document limit reached (%d) on the %s plan; upgrade to add more", plan.MaxDocuments, plan.Name))
+			return
+		}
 	}
 
 	doc, err := s.store.CreateDocument(r.Context(), userID, workspaceID, req.Title, req.Content)

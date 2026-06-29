@@ -18,6 +18,7 @@ import (
 
 	"github.com/thefcan/ragdesk/api/internal/ai"
 	"github.com/thefcan/ragdesk/api/internal/auth"
+	"github.com/thefcan/ragdesk/api/internal/billing"
 	"github.com/thefcan/ragdesk/api/internal/config"
 	"github.com/thefcan/ragdesk/api/internal/ingest"
 	"github.com/thefcan/ragdesk/api/internal/server"
@@ -70,6 +71,15 @@ func main() {
 
 	issuer := auth.NewIssuer(cfg.JWTSecret, cfg.JWTTTL)
 
+	// Billing provider: real Stripe when configured, otherwise the $0 dev path.
+	var billingProvider billing.Provider = billing.Noop{}
+	if cfg.StripeSecretKey != "" {
+		billingProvider = billing.NewStripe(cfg.StripeSecretKey, cfg.StripePriceProID, cfg.StripeWebhookSecret)
+		log.Info("stripe billing enabled")
+	} else {
+		log.Info("stripe not configured; billing runs in dev mode (no charges)")
+	}
+
 	// Async ingestion worker.
 	aiClient := ai.NewClient(cfg.AIServiceURL, cfg.AIInternalToken)
 	worker := ingest.NewWorker(rdb, st, aiClient, log)
@@ -78,7 +88,7 @@ func main() {
 
 	srv := &http.Server{
 		Addr:              ":" + cfg.Port,
-		Handler:           server.New(st, rdb, issuer, aiClient, cfg.CORSAllowedOrigins, log).Handler(),
+		Handler:           server.New(st, rdb, issuer, aiClient, billingProvider, cfg.CORSAllowedOrigins, cfg.WebBaseURL, log).Handler(),
 		ReadHeaderTimeout: 5 * time.Second,
 	}
 

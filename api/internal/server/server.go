@@ -13,33 +13,38 @@ import (
 
 	"github.com/thefcan/ragdesk/api/internal/ai"
 	"github.com/thefcan/ragdesk/api/internal/auth"
+	"github.com/thefcan/ragdesk/api/internal/billing"
 	"github.com/thefcan/ragdesk/api/internal/ingest"
 	"github.com/thefcan/ragdesk/api/internal/store"
 )
 
 // Server holds the router and its backing dependencies.
 type Server struct {
-	router  *chi.Mux
-	store   *store.Store
-	rdb     *redis.Client
-	issuer  *auth.Issuer
-	ai      *ai.Client
-	queue   *ingest.Queue
-	origins []string
-	log     *slog.Logger
+	router     *chi.Mux
+	store      *store.Store
+	rdb        *redis.Client
+	issuer     *auth.Issuer
+	ai         *ai.Client
+	queue      *ingest.Queue
+	billing    billing.Provider
+	origins    []string
+	webBaseURL string
+	log        *slog.Logger
 }
 
 // New constructs a Server with production middleware and routes registered.
-func New(st *store.Store, rdb *redis.Client, iss *auth.Issuer, aiClient *ai.Client, corsOrigins []string, log *slog.Logger) *Server {
+func New(st *store.Store, rdb *redis.Client, iss *auth.Issuer, aiClient *ai.Client, billingProvider billing.Provider, corsOrigins []string, webBaseURL string, log *slog.Logger) *Server {
 	s := &Server{
-		router:  chi.NewRouter(),
-		store:   st,
-		rdb:     rdb,
-		issuer:  iss,
-		ai:      aiClient,
-		queue:   ingest.NewQueue(rdb),
-		origins: corsOrigins,
-		log:     log,
+		router:     chi.NewRouter(),
+		store:      st,
+		rdb:        rdb,
+		issuer:     iss,
+		ai:         aiClient,
+		queue:      ingest.NewQueue(rdb),
+		billing:    billingProvider,
+		origins:    corsOrigins,
+		webBaseURL: webBaseURL,
+		log:        log,
 	}
 	s.routes()
 	return s
@@ -65,6 +70,9 @@ func (s *Server) routes() {
 	r.Get("/readyz", s.handleReady)
 	r.Get("/version", s.handleVersion)
 
+	// Stripe webhook: public (Stripe signs the payload) and verified inside.
+	r.Post("/billing/webhook", s.handleStripeWebhook)
+
 	r.Route("/auth", func(r chi.Router) {
 		r.Use(s.rateLimit(10, time.Minute))
 		r.Post("/register", s.handleRegister)
@@ -82,6 +90,9 @@ func (s *Server) routes() {
 		r.Post("/workspaces/{id}/documents", s.handleCreateDocument)
 		r.Post("/workspaces/{id}/documents/{docId}/reingest", s.handleReingestDocument)
 		r.With(s.userRateLimit(20, time.Minute)).Post("/workspaces/{id}/chat", s.handleChat)
+		r.Get("/workspaces/{id}/billing", s.handleGetBilling)
+		r.Post("/workspaces/{id}/billing/checkout", s.handleCheckout)
+		r.Post("/workspaces/{id}/billing/dev-confirm", s.handleDevConfirm)
 	})
 }
 

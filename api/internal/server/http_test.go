@@ -18,11 +18,19 @@ import (
 
 	"github.com/thefcan/ragdesk/api/internal/ai"
 	"github.com/thefcan/ragdesk/api/internal/auth"
+	"github.com/thefcan/ragdesk/api/internal/billing"
 	"github.com/thefcan/ragdesk/api/internal/server"
 	"github.com/thefcan/ragdesk/api/internal/store"
 )
 
 func newTestServer(t *testing.T, aiURL string) http.Handler {
+	h, _ := newTestServerAndPool(t, aiURL)
+	return h
+}
+
+// newTestServerAndPool builds the test server and also returns the pool, so
+// tests that need to seed rows directly (e.g. plan-limit fixtures) can do so.
+func newTestServerAndPool(t *testing.T, aiURL string) (http.Handler, *pgxpool.Pool) {
 	t.Helper()
 	dsn := os.Getenv("DATABASE_URL")
 	if dsn == "" {
@@ -47,7 +55,8 @@ func newTestServer(t *testing.T, aiURL string) http.Handler {
 	t.Cleanup(func() { _ = rdb.Close() })
 	iss := auth.NewIssuer("test-secret", time.Hour)
 	log := slog.New(slog.NewTextHandler(io.Discard, nil))
-	return server.New(st, rdb, iss, ai.NewClient(aiURL, ""), []string{"*"}, log).Handler()
+	h := server.New(st, rdb, iss, ai.NewClient(aiURL, ""), billing.Noop{}, []string{"*"}, "http://localhost:3000", log).Handler()
+	return h, pool
 }
 
 func doJSON(t *testing.T, h http.Handler, method, path, token string, body any) (int, map[string]any) {
