@@ -26,6 +26,10 @@ paid infrastructure.
 
 [![RAG chat](docs/screenshots/chat.png)](docs/screenshots/chat.png)
 
+**Plans, metered usage and one-click upgrade — billing as a first-class feature:**
+
+[![Billing & usage](docs/screenshots/billing.png)](docs/screenshots/billing.png)
+
 | Landing | Workspaces dashboard — multi-tenant |
 |---|---|
 | [![Landing](docs/screenshots/landing.png)](docs/screenshots/landing.png) | [![Dashboard](docs/screenshots/dashboard.png)](docs/screenshots/dashboard.png) |
@@ -41,7 +45,7 @@ paid infrastructure.
 - 📄 **Document ingestion** — upload → chunk → embed (Ollama) → `pgvector`, processed async via a Redis queue + worker
 - 💬 **RAG chat** — streaming answers grounded in your documents, **with citations** (pgvector cosine retrieval)
 - 🔌 **Provider-agnostic LLM** — Ollama (local/$0), Gemini/Groq (free tier), or Claude
-- 💳 **Billing & metering** *(Phase 4)* — Stripe subscriptions, usage limits, plan enforcement
+- 💳 **Billing & metering** — Stripe subscriptions (test mode), per-workspace usage metering, plan limits enforced with `402 Payment Required`; runs $0 with a dev-mode fallback
 - 🔒 **Production hardening** — rate limiting, structured logs, health probes, govulncheck, CodeQL
 - 🐳 **Cloud-native** — multi-stage Docker images, `docker compose up`, GitHub Actions CI
 
@@ -110,7 +114,34 @@ curl -s localhost:8080/workspaces -H "Authorization: Bearer $TOKEN"
 | GET | `/workspaces/{id}/documents` | Bearer | List a workspace's documents |
 | POST | `/workspaces/{id}/documents` | Bearer | Upload a document (async ingestion) |
 | POST | `/workspaces/{id}/chat` | Bearer | Ask a question — streaming RAG answer with citations |
+| GET | `/workspaces/{id}/billing` | Bearer | Plan, limits and current-period usage |
+| POST | `/workspaces/{id}/billing/checkout` | Bearer (owner) | Start an upgrade (Stripe checkout, or dev confirm) |
+| POST | `/billing/webhook` | Stripe-signed | Apply subscription changes from verified events |
 | GET | `/healthz` · `/readyz` · `/version` | public | Probes & build info |
+
+## 💳 Billing & metering
+
+Billing is modelled per **workspace** (the tenant). Plans and their limits live in
+code; usage is metered durably in Postgres and enforced at the API edge.
+
+| Plan | Documents | Chat messages / month | Price |
+|------|-----------|-----------------------|-------|
+| **Free** | 25 | 100 | $0 |
+| **Pro** | 1,000 | 5,000 | $29 / mo |
+
+- **Metering** — a `usage_counters` table buckets usage per `(workspace, month, metric)`
+  and is incremented atomically (`INSERT … ON CONFLICT … DO UPDATE`). Documents are
+  counted directly.
+- **Enforcement** — over-limit document uploads and chat messages are rejected with
+  `402 Payment Required` before any expensive work runs.
+- **Provider-agnostic payments** — a `billing.Provider` interface mirrors the LLM
+  layer. With **Stripe test-mode** keys it creates a hosted Checkout Session and
+  fulfils the upgrade from a **signature-verified webhook**. With no keys it runs a
+  **$0 dev mode**: a local dev-confirm endpoint stands in for the webhook, so the
+  whole flow is demoable for free.
+- **Safe by default** — the webhook is signature-verified (forged events are
+  rejected), the API refuses to start with a Stripe key but no webhook secret, and
+  only a workspace **owner** can change the plan.
 
 ## 🗺️ Roadmap
 
@@ -120,7 +151,7 @@ Built phase by phase, each shipped with tests, clean commits, Docker and green C
 - [x] **Phase 1 — Auth & multi-tenancy**: JWT register/login, workspaces, members, roles, tenant isolation, **Next.js web** (landing, auth, dashboard)
 - [x] **Phase 2 — Document ingestion**: upload → chunk → embed (Ollama) → `pgvector`, async Redis queue + worker
 - [x] **Phase 3 — RAG chat**: pgvector cosine retrieval + streaming answers + citations, provider-agnostic LLM
-- [ ] **Phase 4 — Billing & metering**: Stripe subscriptions, usage limits, rate limiting
+- [x] **Phase 4 — Billing & metering**: Stripe subscriptions (test mode), per-workspace usage metering, plan-limit enforcement (`402`), $0 dev mode
 - [ ] **Phase 5 — Production polish**: OpenTelemetry, free-tier deploy
 
 ## 💸 Runs on $0
