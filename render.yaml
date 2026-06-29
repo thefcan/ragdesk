@@ -1,0 +1,101 @@
+# Render Blueprint — one-click deploy of the whole ragdesk stack on Render's
+# free tier. Postgres (with pgvector), a Redis-compatible Key Value store, the
+# Go API, the Python AI service and the Next.js web app.
+#
+# DATABASE_URL, REDIS_URL and the shared secrets are wired automatically. A few
+# URL values depend on the hostnames Render assigns, so they are marked
+# `sync: false` — fill them in after the first deploy (see docs/deploy.md).
+#
+# The deploy defaults to the deterministic `fake` LLM providers so it runs at $0
+# with no model server or API key. To get real answers, plug a hosted provider
+# into the provider-agnostic AI layer (see docs/deploy.md).
+
+databases:
+  - name: ragdesk-db
+    plan: free
+    postgresMajorVersion: "16"
+
+services:
+  # Redis-compatible cache + ingestion queue.
+  - type: keyvalue
+    name: ragdesk-redis
+    plan: free
+    ipAllowList: [] # reachable only from other Render services
+
+  # Python AI service (embeddings + RAG). Protected by a shared internal token.
+  - type: web
+    name: ragdesk-ai
+    runtime: docker
+    plan: free
+    rootDir: ai
+    dockerfilePath: ./Dockerfile
+    healthCheckPath: /healthz
+    envVars:
+      - key: PORT
+        value: "8000"
+      - key: DATABASE_URL
+        fromDatabase:
+          name: ragdesk-db
+          property: connectionString
+      - key: EMBEDDING_PROVIDER
+        value: fake
+      - key: CHAT_PROVIDER
+        value: fake
+      - key: INTERNAL_TOKEN
+        generateValue: true # shared with the API below
+
+  # Go core API (tenancy, documents, billing). Fronts the AI service.
+  - type: web
+    name: ragdesk-api
+    runtime: docker
+    plan: free
+    rootDir: api
+    dockerfilePath: ./Dockerfile
+    healthCheckPath: /healthz
+    envVars:
+      - key: PORT
+        value: "8080"
+      - key: RAGDESK_ENV
+        value: production
+      - key: DATABASE_URL
+        fromDatabase:
+          name: ragdesk-db
+          property: connectionString
+      - key: REDIS_URL
+        fromService:
+          type: keyvalue
+          name: ragdesk-redis
+          property: connectionString
+      - key: JWT_SECRET
+        generateValue: true
+      - key: AI_INTERNAL_TOKEN # reuse the exact token generated for the AI service
+        fromService:
+          type: web
+          name: ragdesk-ai
+          envVarKey: INTERNAL_TOKEN
+      # URLs depend on Render-assigned hostnames — set after the first deploy:
+      - key: AI_SERVICE_URL # https://ragdesk-ai.onrender.com
+        sync: false
+      - key: CORS_ALLOWED_ORIGINS # https://ragdesk-web.onrender.com
+        sync: false
+      - key: WEB_BASE_URL # https://ragdesk-web.onrender.com
+        sync: false
+      # To enable real Stripe checkout, add these (test-mode keys):
+      # - key: STRIPE_SECRET_KEY
+      #   sync: false
+      # - key: STRIPE_PRICE_PRO
+      #   sync: false
+      # - key: STRIPE_WEBHOOK_SECRET
+      #   sync: false
+
+  # Next.js web app.
+  - type: web
+    name: ragdesk-web
+    runtime: node
+    plan: free
+    rootDir: web
+    buildCommand: npm ci && npm run build
+    startCommand: npm run start
+    envVars:
+      - key: NEXT_PUBLIC_API_URL # https://ragdesk-api.onrender.com (set before first build)
+        sync: false

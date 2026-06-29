@@ -1,6 +1,7 @@
 # ragdesk
 
 [![CI](https://github.com/thefcan/ragdesk/actions/workflows/ci.yml/badge.svg)](https://github.com/thefcan/ragdesk/actions/workflows/ci.yml)
+[![CD](https://github.com/thefcan/ragdesk/actions/workflows/cd.yml/badge.svg)](https://github.com/thefcan/ragdesk/actions/workflows/cd.yml)
 [![CodeQL](https://github.com/thefcan/ragdesk/actions/workflows/codeql.yml/badge.svg)](https://github.com/thefcan/ragdesk/actions/workflows/codeql.yml)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
 [![Go](https://img.shields.io/badge/Go-1.26-00ADD8?logo=go&logoColor=white)](api/go.mod)
@@ -157,7 +158,18 @@ Built phase by phase, each shipped with tests, clean commits, Docker and green C
 - [x] **Phase 2 — Document ingestion**: upload → chunk → embed (Ollama) → `pgvector`, async Redis queue + worker
 - [x] **Phase 3 — RAG chat**: pgvector cosine retrieval + streaming answers + citations, provider-agnostic LLM
 - [x] **Phase 4 — Billing & metering**: Stripe subscriptions (test mode), per-workspace usage metering, plan-limit enforcement (`402`), $0 dev mode
-- [ ] **Phase 5 — Production polish**: OpenTelemetry, free-tier deploy
+- [~] **Phase 5 — Delivery & deploy**: **CD to GHCR** + one-click **Render Blueprint** ✅ · OpenTelemetry tracing *(next)*
+
+## ☁️ Deploy
+
+Every push to `main` builds and publishes both service images to GHCR
+(`ghcr.io/thefcan/ragdesk-api`, `ghcr.io/thefcan/ragdesk-ai`), so the stack runs
+on any container host. A one-click **Render Blueprint** ([`render.yaml`](render.yaml))
+provisions Postgres + pgvector, Redis, the API, the AI service and the web app on
+the free tier — Postgres, Redis and the shared secrets are wired automatically.
+
+See **[`docs/deploy.md`](docs/deploy.md)** for the full guide (Render, Fly.io,
+Vercel, or your own `docker compose`).
 
 ## 💸 Runs on $0
 
