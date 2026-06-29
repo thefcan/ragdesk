@@ -7,6 +7,8 @@ export type Workspace = {
   slug: string;
   owner_id: string;
   role?: string;
+  plan?: string;
+  subscription_status?: string;
   created_at: string;
 };
 
@@ -84,6 +86,47 @@ export function createDocument(token: string, workspaceId: string, title: string
     headers: headers(token),
     body: JSON.stringify({ title, content }),
   }).then(handle<Document>);
+}
+
+export type Plan = {
+  id: string;
+  name: string;
+  price_cents: number;
+  max_documents: number;
+  max_chat_per_month: number;
+};
+
+export type Billing = {
+  plan: string;
+  status: string;
+  role: string;
+  period: string;
+  usage: { documents: number; chat_messages: number };
+  limits: { documents: number; chat_messages: number };
+  plans: Plan[];
+  billing_enabled: boolean;
+};
+
+export function getBilling(token: string, workspaceId: string) {
+  return fetch(`${API_URL}/workspaces/${workspaceId}/billing`, {
+    headers: headers(token),
+  }).then(handle<Billing>);
+}
+
+export function checkout(token: string, workspaceId: string, plan: string) {
+  return fetch(`${API_URL}/workspaces/${workspaceId}/billing/checkout`, {
+    method: "POST",
+    headers: headers(token),
+    body: JSON.stringify({ plan }),
+  }).then(handle<{ url: string; mode: string }>);
+}
+
+export function devConfirm(token: string, workspaceId: string, plan: string) {
+  return fetch(`${API_URL}/workspaces/${workspaceId}/billing/dev-confirm`, {
+    method: "POST",
+    headers: headers(token),
+    body: JSON.stringify({ plan }),
+  }).then(handle<{ plan: string; status: string }>);
 }
 
 export type Source = { document_id: string; title: string; snippet: string };

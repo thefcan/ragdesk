@@ -97,12 +97,20 @@ export default function WorkspacePage() {
         </Link>
         <div className="mt-2 flex items-center justify-between">
           <h1 className="text-2xl font-bold text-slate-900">Documents</h1>
-          <Link
-            href={`/workspaces/${workspaceId}/chat`}
-            className="rounded-lg bg-indigo-600 px-4 py-2 text-sm font-semibold text-white hover:bg-indigo-700"
-          >
-            💬 Ask your documents
-          </Link>
+          <div className="flex items-center gap-2">
+            <Link
+              href={`/workspaces/${workspaceId}/billing`}
+              className="rounded-lg border border-slate-300 px-4 py-2 text-sm font-semibold text-slate-700 hover:bg-slate-100"
+            >
+              ⚙️ Plan &amp; usage
+            </Link>
+            <Link
+              href={`/workspaces/${workspaceId}/chat`}
+              className="rounded-lg bg-indigo-600 px-4 py-2 text-sm font-semibold text-white hover:bg-indigo-700"
+            >
+              💬 Ask your documents
+            </Link>
+          </div>
         </div>
         <p className="mt-1 text-sm text-slate-500">
           Uploaded text is chunked, embedded and stored for retrieval. Ingestion runs asynchronously.
