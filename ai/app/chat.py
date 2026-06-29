@@ -36,6 +36,31 @@ class OllamaChat(ChatProvider):
                         break
 
 
+class GeminiChat(ChatProvider):
+    """Streams tokens from Google's Gemini chat API (free tier) over SSE."""
+
+    def stream(self, prompt: str) -> Iterator[str]:
+        model = settings.gemini_chat_model
+        payload = {"contents": [{"parts": [{"text": prompt}]}]}
+        with httpx.Client(base_url=settings.gemini_base_url, timeout=120.0) as client:
+            with client.stream(
+                "POST",
+                f"/models/{model}:streamGenerateContent",
+                params={"key": settings.gemini_api_key, "alt": "sse"},
+                json=payload,
+            ) as resp:
+                resp.raise_for_status()
+                for line in resp.iter_lines():
+                    if not line.startswith("data:"):
+                        continue
+                    obj = json.loads(line[len("data:") :].strip())
+                    for candidate in obj.get("candidates", []):
+                        for part in candidate.get("content", {}).get("parts", []):
+                            token = part.get("text")
+                            if token:
+                                yield token
+
+
 class FakeChat(ChatProvider):
     """Deterministic answer so tests/CI need no model server."""
 
@@ -46,6 +71,8 @@ class FakeChat(ChatProvider):
 def get_chat_provider() -> ChatProvider:
     if settings.chat_provider == "fake":
         return FakeChat()
+    if settings.chat_provider == "gemini":
+        return GeminiChat()
     return OllamaChat()
 
 

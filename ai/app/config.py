@@ -12,12 +12,20 @@ class Settings(BaseSettings):
     # Shared secret the Go API sends; empty disables the check (dev only).
     internal_token: str = ""
 
-    # Provider-agnostic embeddings. "ollama" calls a local model; "fake" yields
-    # deterministic vectors so tests and CI need no model server.
+    # Provider-agnostic embeddings. "ollama" calls a local model; "gemini" calls
+    # Google's free-tier API; "fake" yields deterministic vectors so tests and CI
+    # need no model server.
     embedding_provider: str = "ollama"
     ollama_base_url: str = "http://localhost:11434"
     embedding_model: str = "nomic-embed-text"
     embedding_dim: int = 768
+
+    # Google Gemini (free tier). One key serves both chat and embeddings, and
+    # text-embedding-004 is 768-dim — matching the schema, so no migration.
+    gemini_api_key: str = ""
+    gemini_base_url: str = "https://generativelanguage.googleapis.com/v1beta"
+    gemini_embedding_model: str = "text-embedding-004"
+    gemini_chat_model: str = "gemini-2.0-flash"
 
     chunk_size: int = 1000
     chunk_overlap: int = 150

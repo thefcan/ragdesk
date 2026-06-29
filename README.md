@@ -45,7 +45,7 @@ paid infrastructure.
 - 🔐 **JWT auth** — register/login with bcrypt-hashed passwords, HS256 tokens
 - 📄 **Document ingestion** — upload → chunk → embed (Ollama) → `pgvector`, processed async via a Redis queue + worker
 - 💬 **RAG chat** — streaming answers grounded in your documents, **with citations** (pgvector cosine retrieval)
-- 🔌 **Provider-agnostic LLM** — Ollama (local/$0), Gemini/Groq (free tier), or Claude
+- 🔌 **Provider-agnostic LLM** — swap embeddings & chat independently: **Ollama** (local/$0), **Gemini** (free hosted tier), or a deterministic **fake** for tests/CI
 - 💳 **Billing & metering** — Stripe subscriptions (test mode), per-workspace usage metering, plan limits enforced with `402 Payment Required`; runs $0 with a dev-mode fallback
 - 🔒 **Production hardening** — rate limiting, structured logs, health probes, govulncheck, CodeQL
 - 🔭 **Observability** — optional OpenTelemetry tracing across web → API → AI → Postgres (no-op until configured)
@@ -61,7 +61,7 @@ flowchart LR
     API --> Redis[(Redis · cache + queue)]
     API -->|ingest / chat| AI[ai · Python + FastAPI]
     AI --> PG
-    AI -->|provider-agnostic| LLM{{Ollama · Gemini · Claude}}
+    AI -->|provider-agnostic| LLM{{Ollama · Gemini}}
 ```
 
 See [`docs/architecture.md`](docs/architecture.md) for the full design.

@@ -38,9 +38,13 @@ services:
           name: ragdesk-db
           property: connectionString
       - key: EMBEDDING_PROVIDER
-        value: fake
+        value: fake # set to "gemini" for real hosted embeddings (free tier)
       - key: CHAT_PROVIDER
-        value: fake
+        value: fake # set to "gemini" for real hosted chat (free tier)
+      # For real Gemini answers, switch the two providers above to "gemini" and
+      # add your free key from https://aistudio.google.com/apikey:
+      # - key: GEMINI_API_KEY
+      #   sync: false
       - key: INTERNAL_TOKEN
         generateValue: true # shared with the API below
 

@@ -56,9 +56,20 @@ web app — all on Render's free tier.
 The Blueprint defaults to the deterministic **`fake`** providers so it runs at
 $0 with no model server. The AI layer is provider-agnostic
 ([`ai/app/embeddings.py`](../ai/app/embeddings.py),
-[`ai/app/chat.py`](../ai/app/chat.py)): add a hosted provider (e.g. a free-tier
-chat API for `CHAT_PROVIDER` and an embeddings API for `EMBEDDING_PROVIDER`),
-set its env vars, and redeploy — no other code changes.
+[`ai/app/chat.py`](../ai/app/chat.py)).
+
+To get **real answers for free**, plug in Google **Gemini** (free tier). One key
+serves both capabilities, and `text-embedding-004` is 768-dimensional — it
+matches the schema, so there is no migration. On `ragdesk-ai`:
+
+| Variable | Value |
+|----------|-------|
+| `EMBEDDING_PROVIDER` | `gemini` |
+| `CHAT_PROVIDER` | `gemini` |
+| `GEMINI_API_KEY` | your key from <https://aistudio.google.com/apikey> |
+
+Redeploy — no other code changes. Prefer a local model? Set the providers to
+`ollama` instead and point `OLLAMA_BASE_URL` at your Ollama host.
 
 ## Real billing (optional)
 
