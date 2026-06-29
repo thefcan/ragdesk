@@ -116,7 +116,8 @@ curl -s localhost:8080/workspaces -H "Authorization: Bearer $TOKEN"
 | POST | `/workspaces/{id}/chat` | Bearer | Ask a question — streaming RAG answer with citations |
 | GET | `/workspaces/{id}/billing` | Bearer | Plan, limits and current-period usage |
 | POST | `/workspaces/{id}/billing/checkout` | Bearer (owner) | Start an upgrade (Stripe checkout, or dev confirm) |
-| POST | `/billing/webhook` | Stripe-signed | Apply subscription changes from verified events |
+| POST | `/workspaces/{id}/billing/portal` | Bearer (owner) | Open the Stripe billing portal (manage / cancel) |
+| POST | `/billing/webhook` | Stripe-signed | Apply subscription changes from verified events (idempotent) |
 | GET | `/healthz` · `/readyz` · `/version` | public | Probes & build info |
 
 ## 💳 Billing & metering
@@ -133,15 +134,19 @@ code; usage is metered durably in Postgres and enforced at the API edge.
   and is incremented atomically (`INSERT … ON CONFLICT … DO UPDATE`). Documents are
   counted directly.
 - **Enforcement** — over-limit document uploads and chat messages are rejected with
-  `402 Payment Required` before any expensive work runs.
+  `402 Payment Required` before any expensive work runs. The document cap is applied
+  **inside the insert** so concurrent uploads can't slip past it.
 - **Provider-agnostic payments** — a `billing.Provider` interface mirrors the LLM
   layer. With **Stripe test-mode** keys it creates a hosted Checkout Session and
   fulfils the upgrade from a **signature-verified webhook**. With no keys it runs a
   **$0 dev mode**: a local dev-confirm endpoint stands in for the webhook, so the
   whole flow is demoable for free.
+- **Self-serve management** — owners upgrade, and manage or cancel through the Stripe
+  **billing portal** (a local cancel stands in when running $0).
 - **Safe by default** — the webhook is signature-verified (forged events are
-  rejected), the API refuses to start with a Stripe key but no webhook secret, and
-  only a workspace **owner** can change the plan.
+  rejected) and **idempotent** (Stripe delivers at least once; processed event ids
+  are recorded and skipped), the API refuses to start with a Stripe key but no
+  webhook secret, and only a workspace **owner** can change the plan.
 
 ## 🗺️ Roadmap
 
