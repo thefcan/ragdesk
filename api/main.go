@@ -13,8 +13,10 @@ import (
 	"syscall"
 	"time"
 
+	"github.com/exaring/otelpgx"
 	"github.com/jackc/pgx/v5/pgxpool"
 	"github.com/redis/go-redis/v9"
+	"go.opentelemetry.io/contrib/instrumentation/net/http/otelhttp"
 
 	"github.com/thefcan/ragdesk/api/internal/ai"
 	"github.com/thefcan/ragdesk/api/internal/auth"
@@ -23,6 +25,7 @@ import (
 	"github.com/thefcan/ragdesk/api/internal/ingest"
 	"github.com/thefcan/ragdesk/api/internal/server"
 	"github.com/thefcan/ragdesk/api/internal/store"
+	"github.com/thefcan/ragdesk/api/internal/telemetry"
 )
 
 func main() {
@@ -42,7 +45,28 @@ func main() {
 		log.Warn("using the default JWT secret; set JWT_SECRET outside development")
 	}
 
-	db, err := pgxpool.New(context.Background(), cfg.DatabaseURL)
+	// Optional distributed tracing (no-op unless OTEL_EXPORTER_OTLP_ENDPOINT set).
+	shutdownTracing, err := telemetry.Init(context.Background(), "ragdesk-api", server.Version)
+	if err != nil {
+		log.Warn("telemetry init", slog.Any("err", err))
+	}
+	defer func() {
+		ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+		defer cancel()
+		_ = shutdownTracing(ctx)
+	}()
+	if telemetry.Enabled() {
+		log.Info("opentelemetry tracing enabled")
+	}
+
+	poolCfg, err := pgxpool.ParseConfig(cfg.DatabaseURL)
+	if err != nil {
+		log.Error("postgres config", slog.Any("err", err))
+		os.Exit(1)
+	}
+	// Trace SQL queries; a no-op without a configured tracer provider.
+	poolCfg.ConnConfig.Tracer = otelpgx.NewTracer()
+	db, err := pgxpool.NewWithConfig(context.Background(), poolCfg)
 	if err != nil {
 		log.Error("postgres pool", slog.Any("err", err))
 		os.Exit(1)
@@ -86,9 +110,12 @@ func main() {
 	workerCtx, stopWorker := context.WithCancel(context.Background())
 	go worker.Run(workerCtx)
 
+	handler := server.New(st, rdb, issuer, aiClient, billingProvider, cfg.CORSAllowedOrigins, cfg.WebBaseURL, log).Handler()
+	// Server span per request; trace context is propagated from inbound headers.
+	handler = otelhttp.NewHandler(handler, "ragdesk-api")
 	srv := &http.Server{
 		Addr:              ":" + cfg.Port,
-		Handler:           server.New(st, rdb, issuer, aiClient, billingProvider, cfg.CORSAllowedOrigins, cfg.WebBaseURL, log).Handler(),
+		Handler:           handler,
 		ReadHeaderTimeout: 5 * time.Second,
 	}
 

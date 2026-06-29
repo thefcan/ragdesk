@@ -10,6 +10,8 @@ import (
 	"io"
 	"net/http"
 	"time"
+
+	"go.opentelemetry.io/contrib/instrumentation/net/http/otelhttp"
 )
 
 // Client calls the ragdesk AI service.
@@ -23,11 +25,14 @@ type Client struct {
 // NewClient returns a Client targeting the AI service base URL. token is sent as
 // a shared internal secret so the AI service can reject foreign callers.
 func NewClient(baseURL, token string) *Client {
+	// otelhttp transport propagates trace context to the AI service (no-op
+	// unless tracing is configured).
+	transport := otelhttp.NewTransport(http.DefaultTransport)
 	return &Client{
 		baseURL: baseURL,
 		token:   token,
-		http:    &http.Client{Timeout: 120 * time.Second},
-		stream:  &http.Client{}, // no timeout; the request context governs streaming
+		http:    &http.Client{Timeout: 120 * time.Second, Transport: transport},
+		stream:  &http.Client{Transport: transport}, // no timeout; the request context governs streaming
 	}
 }
 
