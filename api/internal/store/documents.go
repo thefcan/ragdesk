@@ -19,17 +19,25 @@ type Document struct {
 	CreatedAt   time.Time `json:"created_at"`
 }
 
-// CreateDocument inserts a pending document, enforcing workspace membership.
-func (s *Store) CreateDocument(ctx context.Context, userID, workspaceID, title, sourceText string) (Document, error) {
+// CreateDocument inserts a pending document, enforcing workspace membership and
+// the plan's document cap atomically. maxDocuments < 0 means unlimited; when the
+// cap is already reached the insert affects no rows and ErrLimitReached is
+// returned (closing the check-then-insert race).
+func (s *Store) CreateDocument(ctx context.Context, userID, workspaceID, title, sourceText string, maxDocuments int) (Document, error) {
 	if _, err := s.GetWorkspaceForUser(ctx, userID, workspaceID); err != nil {
 		return Document{}, err // ErrNotFound hides workspaces the user can't see
 	}
 	var d Document
 	err := s.pool.QueryRow(ctx,
-		`INSERT INTO documents (workspace_id, title, source_text) VALUES ($1, $2, $3)
+		`INSERT INTO documents (workspace_id, title, source_text)
+		 SELECT $1, $2, $3
+		 WHERE $4 < 0 OR (SELECT count(*) FROM documents WHERE workspace_id = $1) < $4
 		 RETURNING id::text, workspace_id::text, title, status, chunk_count, created_at`,
-		workspaceID, title, sourceText,
+		workspaceID, title, sourceText, maxDocuments,
 	).Scan(&d.ID, &d.WorkspaceID, &d.Title, &d.Status, &d.ChunkCount, &d.CreatedAt)
+	if errors.Is(err, pgx.ErrNoRows) {
+		return Document{}, ErrLimitReached
+	}
 	if err != nil {
 		return Document{}, err
 	}

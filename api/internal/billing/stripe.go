@@ -6,6 +6,7 @@ import (
 	"fmt"
 
 	"github.com/stripe/stripe-go/v82"
+	portalsession "github.com/stripe/stripe-go/v82/billingportal/session"
 	"github.com/stripe/stripe-go/v82/checkout/session"
 	"github.com/stripe/stripe-go/v82/webhook"
 )
@@ -46,11 +47,29 @@ func (s *Stripe) Checkout(ctx context.Context, p CheckoutParams) (string, error)
 			{Price: stripe.String(price), Quantity: stripe.Int64(1)},
 		},
 	}
-	if p.Email != "" {
+	// Reuse the existing customer when known (avoids duplicate Stripe customers
+	// on re-subscribe); fall back to prefilling the email on first checkout.
+	if p.CustomerID != "" {
+		params.Customer = stripe.String(p.CustomerID)
+	} else if p.Email != "" {
 		params.CustomerEmail = stripe.String(p.Email)
 	}
 	params.Context = ctx
 	sess, err := session.New(params)
+	if err != nil {
+		return "", err
+	}
+	return sess.URL, nil
+}
+
+// Portal opens a Stripe billing-portal session for self-serve management.
+func (s *Stripe) Portal(ctx context.Context, customerID, returnURL string) (string, error) {
+	params := &stripe.BillingPortalSessionParams{
+		Customer:  stripe.String(customerID),
+		ReturnURL: stripe.String(returnURL),
+	}
+	params.Context = ctx
+	sess, err := portalsession.New(params)
 	if err != nil {
 		return "", err
 	}
@@ -77,6 +96,7 @@ func (s *Stripe) ParseWebhook(payload []byte, signature string) (Event, error) {
 			return Event{}, err
 		}
 		ev := Event{
+			ID:          event.ID,
 			Type:        EventSubscriptionActive,
 			WorkspaceID: sess.ClientReferenceID,
 			Plan:        PlanPro,
@@ -94,7 +114,7 @@ func (s *Stripe) ParseWebhook(payload []byte, signature string) (Event, error) {
 		if err := json.Unmarshal(event.Data.Raw, &sub); err != nil {
 			return Event{}, err
 		}
-		ev := Event{SubscriptionID: sub.ID, Status: string(sub.Status)}
+		ev := Event{ID: event.ID, SubscriptionID: sub.ID, Status: string(sub.Status)}
 		if sub.Customer != nil {
 			ev.CustomerID = sub.Customer.ID
 		}
@@ -108,6 +128,6 @@ func (s *Stripe) ParseWebhook(payload []byte, signature string) (Event, error) {
 		}
 		return ev, nil
 	default:
-		return Event{Type: EventIgnored}, nil
+		return Event{ID: event.ID, Type: EventIgnored}, nil
 	}
 }

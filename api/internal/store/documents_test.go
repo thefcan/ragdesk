@@ -21,7 +21,7 @@ func TestDocumentFlow(t *testing.T) {
 		t.Fatalf("workspace: %v", err)
 	}
 
-	doc, err := st.CreateDocument(ctx, u.ID, ws.ID, "Doc 1", "hello content")
+	doc, err := st.CreateDocument(ctx, u.ID, ws.ID, "Doc 1", "hello content", -1)
 	if err != nil {
 		t.Fatalf("create document: %v", err)
 	}
@@ -66,7 +66,7 @@ func TestDocumentTenantIsolation(t *testing.T) {
 		t.Fatalf("workspace: %v", err)
 	}
 
-	if _, err := st.CreateDocument(ctx, bob.ID, ws.ID, "x", "y"); !errors.Is(err, store.ErrNotFound) {
+	if _, err := st.CreateDocument(ctx, bob.ID, ws.ID, "x", "y", -1); !errors.Is(err, store.ErrNotFound) {
 		t.Fatalf("create isolation: want ErrNotFound, got %v", err)
 	}
 	if _, err := st.ListDocuments(ctx, bob.ID, ws.ID); !errors.Is(err, store.ErrNotFound) {
@@ -90,7 +90,7 @@ func TestReingestDocument(t *testing.T) {
 	if err != nil {
 		t.Fatalf("workspace: %v", err)
 	}
-	doc, err := st.CreateDocument(ctx, alice.ID, ws.ID, "D", "text")
+	doc, err := st.CreateDocument(ctx, alice.ID, ws.ID, "D", "text", -1)
 	if err != nil {
 		t.Fatalf("document: %v", err)
 	}

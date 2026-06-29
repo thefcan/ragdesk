@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 
+	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgconn"
 )
 
@@ -99,4 +100,40 @@ func (s *Store) SetWorkspacePlanByCustomer(ctx context.Context, customerID, plan
 		customerID, plan, status,
 	)
 	return err
+}
+
+// WorkspaceStripeCustomer returns a workspace's stored Stripe customer id, or ""
+// if none has been recorded yet. Used to reuse the customer across checkouts and
+// to open the billing portal.
+func (s *Store) WorkspaceStripeCustomer(ctx context.Context, workspaceID string) (string, error) {
+	var customer *string
+	err := s.pool.QueryRow(ctx, `SELECT stripe_customer_id FROM workspaces WHERE id = $1`, workspaceID).Scan(&customer)
+	if errors.Is(err, pgx.ErrNoRows) {
+		return "", ErrNotFound
+	}
+	var pgErr *pgconn.PgError
+	if errors.As(err, &pgErr) && pgErr.Code == "22P02" { // invalid uuid input
+		return "", ErrNotFound
+	}
+	if err != nil {
+		return "", err
+	}
+	if customer == nil {
+		return "", nil
+	}
+	return *customer, nil
+}
+
+// MarkWebhookProcessed records a Stripe event id, returning true if it was newly
+// inserted (i.e. not seen before). At-least-once delivery means duplicates must
+// be ignored; a false result tells the caller to skip reprocessing.
+func (s *Store) MarkWebhookProcessed(ctx context.Context, eventID string) (bool, error) {
+	tag, err := s.pool.Exec(ctx,
+		`INSERT INTO processed_webhook_events (event_id) VALUES ($1) ON CONFLICT DO NOTHING`,
+		eventID,
+	)
+	if err != nil {
+		return false, err
+	}
+	return tag.RowsAffected() == 1, nil
 }

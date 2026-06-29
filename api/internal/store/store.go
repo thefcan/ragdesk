@@ -12,9 +12,10 @@ import (
 
 // Sentinel errors mapped to HTTP status codes by the handlers.
 var (
-	ErrNotFound  = errors.New("not found")
-	ErrConflict  = errors.New("already exists")
-	ErrForbidden = errors.New("forbidden")
+	ErrNotFound     = errors.New("not found")
+	ErrConflict     = errors.New("already exists")
+	ErrForbidden    = errors.New("forbidden")
+	ErrLimitReached = errors.New("plan limit reached")
 )
 
 // Store wraps a pgx connection pool.

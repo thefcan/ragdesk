@@ -36,6 +36,9 @@ func TestStripeParseWebhookCheckoutCompleted(t *testing.T) {
 	if ev.WorkspaceID != "ws-123" || ev.CustomerID != "cus_9" || ev.SubscriptionID != "sub_9" {
 		t.Fatalf("ids = %+v", ev)
 	}
+	if ev.ID != "evt_1" {
+		t.Fatalf("event id = %q, want evt_1 (needed for idempotency)", ev.ID)
+	}
 	if ev.Plan != PlanPro {
 		t.Fatalf("plan = %q, want pro", ev.Plan)
 	}
@@ -89,6 +92,9 @@ func TestNoopProvider(t *testing.T) {
 	}
 	if _, err := p.ParseWebhook(nil, ""); err == nil {
 		t.Fatal("noop ParseWebhook should error")
+	}
+	if _, err := p.Portal(context.Background(), "cus_1", "https://example.com"); err == nil {
+		t.Fatal("noop Portal should error")
 	}
 }
 

@@ -42,7 +42,7 @@ func TestUsageMeteringAndPlan(t *testing.T) {
 
 	// Documents are counted for the document limit.
 	for i := 0; i < 2; i++ {
-		if _, err := st.CreateDocument(ctx, alice.ID, ws.ID, "Doc", "body"); err != nil {
+		if _, err := st.CreateDocument(ctx, alice.ID, ws.ID, "Doc", "body", -1); err != nil {
 			t.Fatalf("doc: %v", err)
 		}
 	}
@@ -80,5 +80,57 @@ func TestUsageMeteringAndPlan(t *testing.T) {
 	got, _ := st.WorkspaceBilling(ctx, alice.ID, ws.ID, period)
 	if got.Plan != "free" || got.Status != "canceled" {
 		t.Fatalf("plan/status after cancel = %q/%q, want free/canceled", got.Plan, got.Status)
+	}
+}
+
+func TestDocumentCapEnforcedAtomically(t *testing.T) {
+	st := newTestStore(t)
+	ctx := context.Background()
+	alice, _ := mustUser(t, st, "alice@example.com")
+	ws, err := st.CreateWorkspace(ctx, alice.ID, "WS", "ws")
+	if err != nil {
+		t.Fatalf("workspace: %v", err)
+	}
+	// Cap of 2: two inserts succeed, the third is refused inside the insert.
+	for i := 0; i < 2; i++ {
+		if _, err := st.CreateDocument(ctx, alice.ID, ws.ID, "Doc", "body", 2); err != nil {
+			t.Fatalf("insert %d: %v", i, err)
+		}
+	}
+	if _, err := st.CreateDocument(ctx, alice.ID, ws.ID, "Doc", "body", 2); !errors.Is(err, store.ErrLimitReached) {
+		t.Fatalf("over-cap insert err = %v, want ErrLimitReached", err)
+	}
+	// Unlimited (-1) always inserts.
+	if _, err := st.CreateDocument(ctx, alice.ID, ws.ID, "Doc", "body", -1); err != nil {
+		t.Fatalf("unlimited insert: %v", err)
+	}
+}
+
+func TestWebhookIdempotencyAndCustomerLookup(t *testing.T) {
+	st := newTestStore(t)
+	ctx := context.Background()
+	alice, _ := mustUser(t, st, "alice@example.com")
+	ws, err := st.CreateWorkspace(ctx, alice.ID, "WS", "ws")
+	if err != nil {
+		t.Fatalf("workspace: %v", err)
+	}
+
+	// First delivery of an event id is fresh; a duplicate is not.
+	if fresh, err := st.MarkWebhookProcessed(ctx, "evt_1"); err != nil || !fresh {
+		t.Fatalf("first MarkWebhookProcessed = (%v, %v), want (true, nil)", fresh, err)
+	}
+	if fresh, _ := st.MarkWebhookProcessed(ctx, "evt_1"); fresh {
+		t.Fatal("duplicate event reported as fresh")
+	}
+
+	// Customer id is empty until recorded, then returned.
+	if c, err := st.WorkspaceStripeCustomer(ctx, ws.ID); err != nil || c != "" {
+		t.Fatalf("initial customer = (%q, %v), want empty", c, err)
+	}
+	if err := st.SetWorkspacePlanByID(ctx, ws.ID, "pro", "active", "cus_42", "sub_42"); err != nil {
+		t.Fatalf("set plan: %v", err)
+	}
+	if c, _ := st.WorkspaceStripeCustomer(ctx, ws.ID); c != "cus_42" {
+		t.Fatalf("customer = %q, want cus_42", c)
 	}
 }

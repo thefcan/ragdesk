@@ -98,3 +98,20 @@ func TestChatPlanLimit(t *testing.T) {
 		t.Fatalf("over-limit chat status = %d, want 402", code)
 	}
 }
+
+func TestDevCancelDowngrades(t *testing.T) {
+	h := newTestServer(t, "http://unused")
+	token, wsID := registerOwner(t, h, "alice@example.com")
+
+	// Upgrade, then cancel via the dev path (Stripe-less portal stand-in).
+	if code, _ := doJSON(t, h, http.MethodPost, "/workspaces/"+wsID+"/billing/dev-confirm", token, map[string]any{"plan": "pro"}); code != http.StatusOK {
+		t.Fatalf("dev-confirm status = %d, want 200", code)
+	}
+	if code, _ := doJSON(t, h, http.MethodPost, "/workspaces/"+wsID+"/billing/dev-cancel", token, nil); code != http.StatusOK {
+		t.Fatalf("dev-cancel status = %d, want 200", code)
+	}
+	_, body := doJSON(t, h, http.MethodGet, "/workspaces/"+wsID+"/billing", token, nil)
+	if body["plan"] != "free" || body["status"] != "canceled" {
+		t.Fatalf("after cancel plan/status = %v/%v, want free/canceled", body["plan"], body["status"])
+	}
+}

@@ -47,7 +47,7 @@ func TestWorkerProcess(t *testing.T) {
 	if err != nil {
 		t.Fatalf("workspace: %v", err)
 	}
-	doc, err := st.CreateDocument(ctx, u.ID, ws.ID, "Doc", "some text to ingest")
+	doc, err := st.CreateDocument(ctx, u.ID, ws.ID, "Doc", "some text to ingest", -1)
 	if err != nil {
 		t.Fatalf("document: %v", err)
 	}
@@ -100,7 +100,7 @@ func TestWorkerRecoverRequeuesPending(t *testing.T) {
 	if err != nil {
 		t.Fatalf("workspace: %v", err)
 	}
-	doc, err := st.CreateDocument(ctx, u.ID, ws.ID, "Doc", "text") // stays pending
+	doc, err := st.CreateDocument(ctx, u.ID, ws.ID, "Doc", "text", -1) // stays pending
 	if err != nil {
 		t.Fatalf("document: %v", err)
 	}

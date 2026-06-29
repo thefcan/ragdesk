@@ -45,7 +45,8 @@ func (s *Server) handleCreateDocument(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// Plan enforcement: cap stored documents per the workspace's plan.
+	// Plan enforcement: the document cap is applied atomically inside the insert
+	// (closing the check-then-insert race), so look up the plan to pass its cap.
 	ws, err := s.store.GetWorkspaceForUser(r.Context(), userID, workspaceID)
 	if err != nil {
 		if errors.Is(err, store.ErrNotFound) {
@@ -56,20 +57,13 @@ func (s *Server) handleCreateDocument(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	plan := billing.PlanByID(ws.Plan)
-	if plan.MaxDocuments >= 0 {
-		count, err := s.store.CountDocuments(r.Context(), workspaceID)
-		if err != nil {
-			s.serverError(w, err)
-			return
-		}
-		if count >= plan.MaxDocuments {
-			writeError(w, http.StatusPaymentRequired,
-				fmt.Sprintf("document limit reached (%d) on the %s plan; upgrade to add more", plan.MaxDocuments, plan.Name))
-			return
-		}
-	}
 
-	doc, err := s.store.CreateDocument(r.Context(), userID, workspaceID, req.Title, req.Content)
+	doc, err := s.store.CreateDocument(r.Context(), userID, workspaceID, req.Title, req.Content, plan.MaxDocuments)
+	if errors.Is(err, store.ErrLimitReached) {
+		writeError(w, http.StatusPaymentRequired,
+			fmt.Sprintf("document limit reached (%d) on the %s plan; upgrade to add more", plan.MaxDocuments, plan.Name))
+		return
+	}
 	if errors.Is(err, store.ErrNotFound) {
 		writeError(w, http.StatusNotFound, "workspace not found")
 		return

@@ -66,10 +66,12 @@ func (s *Server) handleCheckout(w http.ResponseWriter, r *http.Request) {
 	}
 
 	email, _ := s.store.UserEmail(r.Context(), ws.OwnerID)
+	customerID, _ := s.store.WorkspaceStripeCustomer(r.Context(), ws.ID)
 	url, err := s.billing.Checkout(r.Context(), billing.CheckoutParams{
 		WorkspaceID: ws.ID,
 		PlanID:      plan,
 		Email:       email,
+		CustomerID:  customerID,
 		SuccessURL:  s.webBaseURL + "/workspaces/" + ws.ID + "/billing?checkout=success",
 		CancelURL:   s.webBaseURL + "/workspaces/" + ws.ID + "/billing?checkout=cancel",
 	})
@@ -103,6 +105,52 @@ func (s *Server) handleDevConfirm(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, http.StatusOK, map[string]string{"plan": plan, "status": "active"})
 }
 
+// handlePortal opens a Stripe billing-portal session so an owner can manage or
+// cancel the subscription. Stripe-only and owner-only.
+func (s *Server) handlePortal(w http.ResponseWriter, r *http.Request) {
+	if !s.billing.Configured() {
+		writeError(w, http.StatusNotFound, "not found")
+		return
+	}
+	ws, ok := s.requireOwner(w, r)
+	if !ok {
+		return
+	}
+	customerID, err := s.store.WorkspaceStripeCustomer(r.Context(), ws.ID)
+	if err != nil {
+		s.serverError(w, err)
+		return
+	}
+	if customerID == "" {
+		writeError(w, http.StatusBadRequest, "no active subscription to manage")
+		return
+	}
+	url, err := s.billing.Portal(r.Context(), customerID, s.webBaseURL+"/workspaces/"+ws.ID+"/billing")
+	if err != nil {
+		s.serverError(w, err)
+		return
+	}
+	writeJSON(w, http.StatusOK, map[string]string{"url": url})
+}
+
+// handleDevCancel downgrades a workspace to Free without Stripe. It exists only
+// in dev mode (the $0 path) and is owner-only — it stands in for a portal cancel.
+func (s *Server) handleDevCancel(w http.ResponseWriter, r *http.Request) {
+	if s.billing.Configured() {
+		writeError(w, http.StatusNotFound, "not found")
+		return
+	}
+	ws, ok := s.requireOwner(w, r)
+	if !ok {
+		return
+	}
+	if err := s.store.SetWorkspacePlanByID(r.Context(), ws.ID, billing.PlanFree, "canceled", "", ""); err != nil {
+		s.serverError(w, err)
+		return
+	}
+	writeJSON(w, http.StatusOK, map[string]string{"plan": billing.PlanFree, "status": "canceled"})
+}
+
 // handleStripeWebhook applies subscription changes from verified Stripe events.
 // It is public (Stripe signs the payload) and only active when Stripe is wired up.
 func (s *Server) handleStripeWebhook(w http.ResponseWriter, r *http.Request) {
@@ -120,6 +168,20 @@ func (s *Server) handleStripeWebhook(w http.ResponseWriter, r *http.Request) {
 		s.log.Warn("stripe webhook verification failed", slog.Any("err", err))
 		writeError(w, http.StatusBadRequest, "invalid signature")
 		return
+	}
+
+	// Idempotency: Stripe delivers at least once. Skip events already applied.
+	if event.ID != "" {
+		fresh, err := s.store.MarkWebhookProcessed(r.Context(), event.ID)
+		if err != nil {
+			s.log.Error("record webhook event", slog.Any("err", err))
+			writeError(w, http.StatusInternalServerError, "internal server error")
+			return
+		}
+		if !fresh {
+			w.WriteHeader(http.StatusOK) // duplicate delivery, already handled
+			return
+		}
 	}
 
 	switch event.Type {

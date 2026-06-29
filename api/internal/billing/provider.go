@@ -9,11 +9,13 @@ import (
 // operation is attempted without credentials.
 var ErrNotConfigured = errors.New("billing: stripe is not configured")
 
-// CheckoutParams describes a subscription checkout request.
+// CheckoutParams describes a subscription checkout request. CustomerID, when
+// set, reuses an existing Stripe customer instead of creating a new one.
 type CheckoutParams struct {
 	WorkspaceID string
 	PlanID      string
 	Email       string
+	CustomerID  string
 	SuccessURL  string
 	CancelURL   string
 }
@@ -29,8 +31,10 @@ const (
 
 // Event is a provider-agnostic billing event derived from a verified webhook.
 // WorkspaceID is set for checkout completion; subscription lifecycle events
-// instead carry CustomerID, which the store maps back to a workspace.
+// instead carry CustomerID, which the store maps back to a workspace. ID is the
+// Stripe event id, used to make at-least-once delivery idempotent.
 type Event struct {
+	ID             string
 	Type           EventType
 	WorkspaceID    string
 	CustomerID     string
@@ -47,6 +51,9 @@ type Provider interface {
 	Configured() bool
 	// Checkout starts a subscription and returns a redirect URL.
 	Checkout(ctx context.Context, p CheckoutParams) (string, error)
+	// Portal returns a customer billing-portal URL for self-serve management
+	// (update card, cancel). returnURL is where the portal sends the user back.
+	Portal(ctx context.Context, customerID, returnURL string) (string, error)
 	// ParseWebhook verifies a Stripe signature and normalises the payload.
 	ParseWebhook(payload []byte, signature string) (Event, error)
 }
@@ -59,6 +66,11 @@ func (Noop) Configured() bool { return false }
 
 // Checkout is never called in dev mode; it errors defensively.
 func (Noop) Checkout(context.Context, CheckoutParams) (string, error) {
+	return "", ErrNotConfigured
+}
+
+// Portal is never called in dev mode; it errors defensively.
+func (Noop) Portal(context.Context, string, string) (string, error) {
 	return "", ErrNotConfigured
 }
 

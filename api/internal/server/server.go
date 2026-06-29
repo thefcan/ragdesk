@@ -92,7 +92,9 @@ func (s *Server) routes() {
 		r.With(s.userRateLimit(20, time.Minute)).Post("/workspaces/{id}/chat", s.handleChat)
 		r.Get("/workspaces/{id}/billing", s.handleGetBilling)
 		r.Post("/workspaces/{id}/billing/checkout", s.handleCheckout)
+		r.Post("/workspaces/{id}/billing/portal", s.handlePortal)
 		r.Post("/workspaces/{id}/billing/dev-confirm", s.handleDevConfirm)
+		r.Post("/workspaces/{id}/billing/dev-cancel", s.handleDevCancel)
 	})
 }
 

@@ -47,7 +47,7 @@ func newTestServerAndPool(t *testing.T, aiURL string) (http.Handler, *pgxpool.Po
 		t.Fatalf("migrate: %v", err)
 	}
 	if _, err := pool.Exec(context.Background(),
-		`TRUNCATE users, workspaces, workspace_members, documents, chunks RESTART IDENTITY CASCADE`); err != nil {
+		`TRUNCATE users, workspaces, workspace_members, documents, chunks, usage_counters, processed_webhook_events RESTART IDENTITY CASCADE`); err != nil {
 		t.Fatalf("truncate: %v", err)
 	}
 
