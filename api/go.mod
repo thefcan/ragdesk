@@ -9,6 +9,7 @@ require (
 	github.com/golang-jwt/jwt/v5 v5.3.1
 	github.com/jackc/pgx/v5 v5.10.0
 	github.com/redis/go-redis/v9 v9.21.0
+	github.com/stripe/stripe-go/v82 v82.5.1
 	golang.org/x/crypto v0.53.0
 )
 
