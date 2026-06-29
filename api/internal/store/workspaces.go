@@ -11,12 +11,14 @@ import (
 
 // Workspace is a tenant. Role is the requesting user's role, when known.
 type Workspace struct {
-	ID        string    `json:"id"`
-	Name      string    `json:"name"`
-	Slug      string    `json:"slug"`
-	OwnerID   string    `json:"owner_id"`
-	Role      string    `json:"role,omitempty"`
-	CreatedAt time.Time `json:"created_at"`
+	ID                 string    `json:"id"`
+	Name               string    `json:"name"`
+	Slug               string    `json:"slug"`
+	OwnerID            string    `json:"owner_id"`
+	Role               string    `json:"role,omitempty"`
+	Plan               string    `json:"plan"`
+	SubscriptionStatus string    `json:"subscription_status"`
+	CreatedAt          time.Time `json:"created_at"`
 }
 
 // CreateWorkspace creates a workspace and enrols the owner, atomically.
@@ -30,9 +32,9 @@ func (s *Store) CreateWorkspace(ctx context.Context, ownerID, name, slug string)
 	var w Workspace
 	if err := tx.QueryRow(ctx,
 		`INSERT INTO workspaces (name, slug, owner_id) VALUES ($1, $2, $3)
-		 RETURNING id::text, name, slug, owner_id::text, created_at`,
+		 RETURNING id::text, name, slug, owner_id::text, plan, subscription_status, created_at`,
 		name, slug, ownerID,
-	).Scan(&w.ID, &w.Name, &w.Slug, &w.OwnerID, &w.CreatedAt); err != nil {
+	).Scan(&w.ID, &w.Name, &w.Slug, &w.OwnerID, &w.Plan, &w.SubscriptionStatus, &w.CreatedAt); err != nil {
 		return Workspace{}, err
 	}
 	if _, err := tx.Exec(ctx,
@@ -51,7 +53,7 @@ func (s *Store) CreateWorkspace(ctx context.Context, ownerID, name, slug string)
 // ListWorkspacesForUser returns the workspaces the user is a member of.
 func (s *Store) ListWorkspacesForUser(ctx context.Context, userID string) ([]Workspace, error) {
 	rows, err := s.pool.Query(ctx,
-		`SELECT w.id::text, w.name, w.slug, w.owner_id::text, m.role, w.created_at
+		`SELECT w.id::text, w.name, w.slug, w.owner_id::text, m.role, w.plan, w.subscription_status, w.created_at
 		 FROM workspaces w
 		 JOIN workspace_members m ON m.workspace_id = w.id
 		 WHERE m.user_id = $1
@@ -66,7 +68,7 @@ func (s *Store) ListWorkspacesForUser(ctx context.Context, userID string) ([]Wor
 	out := []Workspace{}
 	for rows.Next() {
 		var w Workspace
-		if err := rows.Scan(&w.ID, &w.Name, &w.Slug, &w.OwnerID, &w.Role, &w.CreatedAt); err != nil {
+		if err := rows.Scan(&w.ID, &w.Name, &w.Slug, &w.OwnerID, &w.Role, &w.Plan, &w.SubscriptionStatus, &w.CreatedAt); err != nil {
 			return nil, err
 		}
 		out = append(out, w)
@@ -79,12 +81,12 @@ func (s *Store) ListWorkspacesForUser(ctx context.Context, userID string) ([]Wor
 func (s *Store) GetWorkspaceForUser(ctx context.Context, userID, workspaceID string) (Workspace, error) {
 	var w Workspace
 	err := s.pool.QueryRow(ctx,
-		`SELECT w.id::text, w.name, w.slug, w.owner_id::text, m.role, w.created_at
+		`SELECT w.id::text, w.name, w.slug, w.owner_id::text, m.role, w.plan, w.subscription_status, w.created_at
 		 FROM workspaces w
 		 JOIN workspace_members m ON m.workspace_id = w.id
 		 WHERE w.id = $1 AND m.user_id = $2`,
 		workspaceID, userID,
-	).Scan(&w.ID, &w.Name, &w.Slug, &w.OwnerID, &w.Role, &w.CreatedAt)
+	).Scan(&w.ID, &w.Name, &w.Slug, &w.OwnerID, &w.Role, &w.Plan, &w.SubscriptionStatus, &w.CreatedAt)
 	if errors.Is(err, pgx.ErrNoRows) {
 		return Workspace{}, ErrNotFound
 	}

@@ -35,6 +35,16 @@ func (s *Store) CreateUser(ctx context.Context, email, passwordHash string) (Use
 	return u, nil
 }
 
+// UserEmail returns a user's email by id (used to prefill Stripe checkout).
+func (s *Store) UserEmail(ctx context.Context, userID string) (string, error) {
+	var email string
+	err := s.pool.QueryRow(ctx, `SELECT email FROM users WHERE id = $1`, userID).Scan(&email)
+	if errors.Is(err, pgx.ErrNoRows) {
+		return "", ErrNotFound
+	}
+	return email, err
+}
+
 // GetUserByEmail looks up a user, returning ErrNotFound if absent.
 func (s *Store) GetUserByEmail(ctx context.Context, email string) (User, error) {
 	var u User
