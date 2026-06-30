@@ -59,6 +59,22 @@ func newTestServerAndPool(t *testing.T, aiURL string) (http.Handler, *pgxpool.Po
 	return h, pool
 }
 
+func TestMetricsEndpoint(t *testing.T) {
+	h := newTestServer(t, "")
+
+	// Exercise a route so a per-route HTTP metric is recorded.
+	h.ServeHTTP(httptest.NewRecorder(), httptest.NewRequest(http.MethodGet, "/healthz", nil))
+
+	rec := httptest.NewRecorder()
+	h.ServeHTTP(rec, httptest.NewRequest(http.MethodGet, "/metrics", nil))
+	if rec.Code != http.StatusOK {
+		t.Fatalf("/metrics status = %d, want 200", rec.Code)
+	}
+	if !strings.Contains(rec.Body.String(), "ragdesk_http_requests_total") {
+		t.Fatal("/metrics is missing the ragdesk_http_requests_total series")
+	}
+}
+
 func doJSON(t *testing.T, h http.Handler, method, path, token string, body any) (int, map[string]any) {
 	t.Helper()
 	var buf bytes.Buffer

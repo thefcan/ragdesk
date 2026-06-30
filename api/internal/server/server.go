@@ -9,6 +9,7 @@ import (
 	"github.com/go-chi/chi/v5"
 	"github.com/go-chi/chi/v5/middleware"
 	"github.com/go-chi/cors"
+	"github.com/prometheus/client_golang/prometheus/promhttp"
 	"github.com/redis/go-redis/v9"
 
 	"github.com/thefcan/ragdesk/api/internal/ai"
@@ -56,6 +57,7 @@ func (s *Server) routes() {
 	// middleware.RealIP is intentionally omitted: it trusts client-supplied
 	// X-Forwarded-For / X-Real-IP headers and is spoofable (chi GHSA advisories).
 	r.Use(middleware.Recoverer)
+	r.Use(s.metrics)
 	r.Use(middleware.Timeout(60 * time.Second))
 	r.Use(cors.Handler(cors.Options{
 		AllowedOrigins:   s.origins,
@@ -69,6 +71,8 @@ func (s *Server) routes() {
 	r.Get("/healthz", s.handleHealth)
 	r.Get("/readyz", s.handleReady)
 	r.Get("/version", s.handleVersion)
+	// Prometheus scrape target (Go runtime, process and per-route HTTP metrics).
+	r.Handle("/metrics", promhttp.Handler())
 
 	// Stripe webhook: public (Stripe signs the payload) and verified inside.
 	r.Post("/billing/webhook", s.handleStripeWebhook)

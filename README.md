@@ -132,7 +132,7 @@ curl -s localhost:8080/workspaces -H "Authorization: Bearer $TOKEN"
 | POST | `/workspaces/{id}/billing/checkout` | Bearer (owner) | Start an upgrade (Stripe checkout, or dev confirm) |
 | POST | `/workspaces/{id}/billing/portal` | Bearer (owner) | Open the Stripe billing portal (manage / cancel) |
 | POST | `/billing/webhook` | Stripe-signed | Apply subscription changes from verified events (idempotent) |
-| GET | `/healthz` · `/readyz` · `/version` | public | Probes & build info |
+| GET | `/healthz` · `/readyz` · `/version` · `/metrics` | public | Probes, build info & Prometheus metrics |
 
 ## 💳 Billing & metering
 
@@ -187,6 +187,10 @@ calls. A request shows up as one connected trace: **web → API → AI → Postg
 # View traces locally in Jaeger (http://localhost:16686)
 OTEL_EXPORTER_OTLP_ENDPOINT=http://jaeger:4318 docker compose --profile observability up
 ```
+
+The API also exposes **Prometheus** metrics at **`/metrics`** — per-route request
+rate, latency (a histogram) and error counts, plus Go runtime and process
+metrics — ready to scrape with no extra setup.
 
 ## 💸 Runs on $0
 
