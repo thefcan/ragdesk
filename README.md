@@ -17,6 +17,9 @@ Generation (RAG) as a real, billable product.
 [![Python](https://img.shields.io/badge/Python-FastAPI-3776AB?logo=python&logoColor=white)](ai/)
 [![Next.js](https://img.shields.io/badge/Next.js-16-black?logo=next.js)](web/)
 
+**🌐 [Live demo](https://ragdesk-web.onrender.com)** &nbsp;·&nbsp; one-click [Deploy your own](docs/deploy.md)
+<br><sub>Free tier — the first request may take ~50s to wake the services.</sub>
+
 </div>
 
 ragdesk is built the way production AI software actually ships: a strongly-typed
