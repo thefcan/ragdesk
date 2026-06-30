@@ -1,3 +1,5 @@
+import json
+
 import httpx
 import pytest
 
@@ -21,17 +23,16 @@ def mock_httpx(monkeypatch):
 
 def test_gemini_embedder(mock_httpx, monkeypatch):
     def handler(request):
-        assert "text-embedding-004:batchEmbedContents" in str(request.url)
+        assert "gemini-embedding-001:embedContent" in str(request.url)
         assert request.url.params.get("key") == "test-key"
-        return httpx.Response(
-            200, json={"embeddings": [{"values": [0.1, 0.2]}, {"values": [0.3, 0.4]}]}
-        )
+        assert json.loads(request.content)["outputDimensionality"] == 768
+        return httpx.Response(200, json={"embedding": {"values": [0.1, 0.2]}})
 
     mock_httpx(handler)
     monkeypatch.setattr(embeddings.settings, "gemini_api_key", "test-key")
 
     out = embeddings.GeminiEmbedder().embed(["a", "b"])
-    assert out == [[0.1, 0.2], [0.3, 0.4]]
+    assert out == [[0.1, 0.2], [0.1, 0.2]]
 
 
 def test_gemini_chat_streams_sse(mock_httpx, monkeypatch):
@@ -41,7 +42,7 @@ def test_gemini_chat_streams_sse(mock_httpx, monkeypatch):
     )
 
     def handler(request):
-        assert "gemini-2.0-flash:streamGenerateContent" in str(request.url)
+        assert "gemini-2.5-flash:streamGenerateContent" in str(request.url)
         assert request.url.params.get("alt") == "sse"
         return httpx.Response(200, text=sse)
 

@@ -30,26 +30,27 @@ class OllamaEmbedder(Embedder):
 
 
 class GeminiEmbedder(Embedder):
-    """Calls Google's Gemini embeddings API (free tier). text-embedding-004 is
-    768-dimensional, matching the schema."""
+    """Calls Google's Gemini embeddings API (free tier). Requests 768-dim vectors
+    via outputDimensionality so they match the schema. Cosine search is
+    scale-invariant, so the unnormalised sub-3072 vectors need no normalising."""
 
     def embed(self, texts: list[str]) -> list[list[float]]:
         model = settings.gemini_embedding_model
-        payload = {
-            "requests": [
-                {"model": f"models/{model}", "content": {"parts": [{"text": text}]}}
-                for text in texts
-            ]
-        }
+        out: list[list[float]] = []
         with httpx.Client(base_url=settings.gemini_base_url, timeout=60.0) as client:
-            resp = client.post(
-                f"/models/{model}:batchEmbedContents",
-                params={"key": settings.gemini_api_key},
-                json=payload,
-            )
-            resp.raise_for_status()
-            data = resp.json()
-        return [item["values"] for item in data["embeddings"]]
+            for text in texts:
+                resp = client.post(
+                    f"/models/{model}:embedContent",
+                    params={"key": settings.gemini_api_key},
+                    json={
+                        "model": f"models/{model}",
+                        "content": {"parts": [{"text": text}]},
+                        "outputDimensionality": settings.embedding_dim,
+                    },
+                )
+                resp.raise_for_status()
+                out.append(resp.json()["embedding"]["values"])
+        return out
 
 
 class FakeEmbedder(Embedder):

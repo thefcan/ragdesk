@@ -20,12 +20,13 @@ class Settings(BaseSettings):
     embedding_model: str = "nomic-embed-text"
     embedding_dim: int = 768
 
-    # Google Gemini (free tier). One key serves both chat and embeddings, and
-    # text-embedding-004 is 768-dim — matching the schema, so no migration.
+    # Google Gemini (free tier). One key serves both chat and embeddings.
+    # gemini-embedding-001 is requested at 768 dims (outputDimensionality) to
+    # match the schema, so no migration.
     gemini_api_key: str = ""
     gemini_base_url: str = "https://generativelanguage.googleapis.com/v1beta"
-    gemini_embedding_model: str = "text-embedding-004"
-    gemini_chat_model: str = "gemini-2.0-flash"
+    gemini_embedding_model: str = "gemini-embedding-001"
+    gemini_chat_model: str = "gemini-2.5-flash"
 
     # Groq (free tier). OpenAI-compatible hosted chat — chat only, so pair it
     # with any embeddings provider above. Key at https://console.groq.com.

@@ -59,8 +59,8 @@ $0 with no model server. The AI layer is provider-agnostic
 [`ai/app/chat.py`](../ai/app/chat.py)).
 
 To get **real answers for free**, plug in Google **Gemini** (free tier). One key
-serves both capabilities, and `text-embedding-004` is 768-dimensional — it
-matches the schema, so there is no migration. On `ragdesk-ai`:
+serves both capabilities, and `gemini-embedding-001` is requested at 768
+dimensions — it matches the schema, so there is no migration. On `ragdesk-ai`:
 
 | Variable | Value |
 |----------|-------|
