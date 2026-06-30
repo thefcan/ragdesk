@@ -3,6 +3,8 @@
 import { useState } from "react";
 import { useParams, useRouter } from "next/navigation";
 import Link from "next/link";
+import ReactMarkdown from "react-markdown";
+import remarkGfm from "remark-gfm";
 import { chat, ApiError, type Source } from "@/lib/api";
 import { getToken, clearToken } from "@/lib/auth";
 
@@ -108,9 +110,13 @@ export default function ChatPage() {
                 rd
               </div>
               <div className="min-w-0 flex-1 rounded-2xl border border-slate-200 bg-white px-4 py-3 shadow-sm">
-                <p className="whitespace-pre-wrap text-slate-800">
-                  {answer || (streaming ? "…" : "")}
-                </p>
+                {answer ? (
+                  <div className="prose prose-sm prose-slate max-w-none prose-headings:mt-3 prose-headings:mb-1 prose-p:my-2 prose-li:my-0.5">
+                    <ReactMarkdown remarkPlugins={[remarkGfm]}>{answer}</ReactMarkdown>
+                  </div>
+                ) : (
+                  <p className="text-slate-400">{streaming ? "…" : ""}</p>
+                )}
 
                 {sources.length > 0 && (
                   <div className="mt-4 border-t border-slate-100 pt-3">
