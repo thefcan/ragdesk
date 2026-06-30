@@ -73,6 +73,9 @@ func (s *Server) routes() {
 	r.Get("/version", s.handleVersion)
 	// Prometheus scrape target (Go runtime, process and per-route HTTP metrics).
 	r.Handle("/metrics", promhttp.Handler())
+	// Interactive API reference (Swagger UI) + the raw OpenAPI spec.
+	r.Get("/docs", s.handleDocs)
+	r.Get("/openapi.yaml", s.handleOpenAPISpec)
 
 	// Stripe webhook: public (Stripe signs the payload) and verified inside.
 	r.Post("/billing/webhook", s.handleStripeWebhook)

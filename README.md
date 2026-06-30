@@ -116,6 +116,8 @@ curl -s localhost:8080/workspaces -H "Authorization: Bearer $TOKEN"
 
 ## 🔌 API (today)
 
+Browse it interactively in **Swagger UI** at **[`/docs`](https://ragdesk-api.onrender.com/docs)** (raw spec at [`/openapi.yaml`](https://ragdesk-api.onrender.com/openapi.yaml)).
+
 | Method | Path | Auth | Description |
 |--------|------|------|-------------|
 | POST | `/auth/register` | public | Create a user + default workspace, returns a JWT |

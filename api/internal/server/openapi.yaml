@@ -1,0 +1,283 @@
+openapi: 3.0.3
+info:
+  title: ragdesk API
+  version: "1.0"
+  description: >-
+    Multi-tenant, AI-powered knowledge SaaS. Upload documents, then ask
+    questions answered only from those documents, with citations. Every
+    workspace endpoint needs a Bearer JWT from `/auth/login` or `/auth/register`.
+  license:
+    name: MIT
+servers:
+  - url: https://ragdesk-api.onrender.com
+    description: Live demo (Render free tier)
+  - url: http://localhost:8080
+    description: Local
+security:
+  - bearerAuth: []
+tags:
+  - name: Auth
+  - name: Workspaces
+  - name: Documents
+  - name: Chat
+  - name: Billing
+  - name: System
+paths:
+  /auth/register:
+    post:
+      tags: [Auth]
+      summary: Create a user and default workspace, returning a JWT
+      security: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [email, password]
+              properties:
+                email: { type: string, format: email }
+                password: { type: string, minLength: 8 }
+                workspace: { type: string }
+      responses:
+        "201":
+          description: Created
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/AuthResult" }
+        "409": { $ref: "#/components/responses/Error" }
+  /auth/login:
+    post:
+      tags: [Auth]
+      summary: Exchange credentials for a JWT
+      security: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [email, password]
+              properties:
+                email: { type: string, format: email }
+                password: { type: string }
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/AuthResult" }
+        "401": { $ref: "#/components/responses/Error" }
+  /workspaces:
+    get:
+      tags: [Workspaces]
+      summary: List the caller's workspaces
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  workspaces:
+                    type: array
+                    items: { $ref: "#/components/schemas/Workspace" }
+    post:
+      tags: [Workspaces]
+      summary: Create a workspace
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [name]
+              properties:
+                name: { type: string }
+      responses:
+        "201":
+          description: Created
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Workspace" }
+  /workspaces/{id}/documents:
+    get:
+      tags: [Documents]
+      summary: List a workspace's documents
+      parameters: [{ $ref: "#/components/parameters/WorkspaceId" }]
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  documents:
+                    type: array
+                    items: { $ref: "#/components/schemas/Document" }
+    post:
+      tags: [Documents]
+      summary: Upload a document (chunked & embedded asynchronously)
+      parameters: [{ $ref: "#/components/parameters/WorkspaceId" }]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [title, content]
+              properties:
+                title: { type: string }
+                content: { type: string }
+      responses:
+        "201":
+          description: Created
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Document" }
+        "402":
+          description: Plan document limit reached
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/ApiError" }
+  /workspaces/{id}/documents/{docId}:
+    delete:
+      tags: [Documents]
+      summary: Delete a document and its chunks
+      parameters:
+        - { $ref: "#/components/parameters/WorkspaceId" }
+        - { $ref: "#/components/parameters/DocumentId" }
+      responses:
+        "204": { description: Deleted }
+        "404": { $ref: "#/components/responses/Error" }
+  /workspaces/{id}/documents/{docId}/reingest:
+    post:
+      tags: [Documents]
+      summary: Re-run ingestion for a document (e.g. after a failure)
+      parameters:
+        - { $ref: "#/components/parameters/WorkspaceId" }
+        - { $ref: "#/components/parameters/DocumentId" }
+      responses:
+        "202": { description: Re-queued }
+        "404": { $ref: "#/components/responses/Error" }
+  /workspaces/{id}/chat:
+    post:
+      tags: [Chat]
+      summary: Ask a question — streaming RAG answer with citations
+      description: >-
+        Streams newline-delimited JSON. The first line is a `sources` event;
+        each following `token` event carries a `content` fragment that
+        concatenates into the answer.
+      parameters: [{ $ref: "#/components/parameters/WorkspaceId" }]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [question]
+              properties:
+                question: { type: string, maxLength: 4096 }
+      responses:
+        "200":
+          description: NDJSON stream of a sources event then token events
+          content:
+            application/x-ndjson:
+              schema: { type: string }
+        "402":
+          description: Plan chat-message limit reached
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/ApiError" }
+  /workspaces/{id}/billing:
+    get:
+      tags: [Billing]
+      summary: Plan, limits and current-period usage
+      parameters: [{ $ref: "#/components/parameters/WorkspaceId" }]
+      responses:
+        "200": { description: OK }
+  /healthz:
+    get:
+      tags: [System]
+      summary: Liveness probe
+      security: []
+      responses:
+        "200": { description: OK }
+  /readyz:
+    get:
+      tags: [System]
+      summary: Readiness probe (verifies Postgres and Redis)
+      security: []
+      responses:
+        "200": { description: Ready }
+        "503": { description: Not ready }
+  /metrics:
+    get:
+      tags: [System]
+      summary: Prometheus metrics (exposition format)
+      security: []
+      responses:
+        "200": { description: OK }
+components:
+  securitySchemes:
+    bearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+  parameters:
+    WorkspaceId:
+      name: id
+      in: path
+      required: true
+      schema: { type: string, format: uuid }
+    DocumentId:
+      name: docId
+      in: path
+      required: true
+      schema: { type: string, format: uuid }
+  responses:
+    Error:
+      description: Error
+      content:
+        application/json:
+          schema: { $ref: "#/components/schemas/ApiError" }
+  schemas:
+    ApiError:
+      type: object
+      properties:
+        error: { type: string }
+    AuthResult:
+      type: object
+      properties:
+        token: { type: string }
+        user: { $ref: "#/components/schemas/User" }
+        workspace: { $ref: "#/components/schemas/Workspace" }
+    User:
+      type: object
+      properties:
+        id: { type: string, format: uuid }
+        email: { type: string, format: email }
+        created_at: { type: string, format: date-time }
+    Workspace:
+      type: object
+      properties:
+        id: { type: string, format: uuid }
+        name: { type: string }
+        slug: { type: string }
+        owner_id: { type: string, format: uuid }
+        role: { type: string }
+        plan: { type: string }
+        subscription_status: { type: string }
+        created_at: { type: string, format: date-time }
+    Document:
+      type: object
+      properties:
+        id: { type: string, format: uuid }
+        workspace_id: { type: string, format: uuid }
+        title: { type: string }
+        status: { type: string, enum: [pending, ready, failed] }
+        chunk_count: { type: integer }
+        error: { type: string }
+        created_at: { type: string, format: date-time }

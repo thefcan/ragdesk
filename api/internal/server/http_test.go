@@ -75,6 +75,28 @@ func TestMetricsEndpoint(t *testing.T) {
 	}
 }
 
+func TestAPIDocs(t *testing.T) {
+	h := newTestServer(t, "")
+
+	spec := httptest.NewRecorder()
+	h.ServeHTTP(spec, httptest.NewRequest(http.MethodGet, "/openapi.yaml", nil))
+	if spec.Code != http.StatusOK {
+		t.Fatalf("/openapi.yaml status = %d, want 200", spec.Code)
+	}
+	if !strings.Contains(spec.Body.String(), "openapi:") {
+		t.Fatal("/openapi.yaml does not look like an OpenAPI document")
+	}
+
+	docs := httptest.NewRecorder()
+	h.ServeHTTP(docs, httptest.NewRequest(http.MethodGet, "/docs", nil))
+	if docs.Code != http.StatusOK {
+		t.Fatalf("/docs status = %d, want 200", docs.Code)
+	}
+	if !strings.Contains(docs.Body.String(), "swagger-ui") {
+		t.Fatal("/docs is not rendering Swagger UI")
+	}
+}
+
 func doJSON(t *testing.T, h http.Handler, method, path, token string, body any) (int, map[string]any) {
 	t.Helper()
 	var buf bytes.Buffer
