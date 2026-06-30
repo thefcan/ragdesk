@@ -71,6 +71,7 @@ export type Document = {
   title: string;
   status: string;
   chunk_count: number;
+  error?: string;
   created_at: string;
 };
 
@@ -86,6 +87,20 @@ export function createDocument(token: string, workspaceId: string, title: string
     headers: headers(token),
     body: JSON.stringify({ title, content }),
   }).then(handle<Document>);
+}
+
+export function reingestDocument(token: string, workspaceId: string, docId: string) {
+  return fetch(`${API_URL}/workspaces/${workspaceId}/documents/${docId}/reingest`, {
+    method: "POST",
+    headers: headers(token),
+  }).then(handle<{ status: string }>);
+}
+
+export function deleteDocument(token: string, workspaceId: string, docId: string) {
+  return fetch(`${API_URL}/workspaces/${workspaceId}/documents/${docId}`, {
+    method: "DELETE",
+    headers: headers(token),
+  }).then(handle<Record<string, never>>);
 }
 
 export type Plan = {

@@ -115,3 +115,47 @@ func TestReingestDocument(t *testing.T) {
 		t.Fatalf("isolation: want ErrNotFound, got %v", err)
 	}
 }
+
+func TestDeleteDocument(t *testing.T) {
+	st := newTestStore(t)
+	ctx := context.Background()
+
+	alice, err := st.CreateUser(ctx, "alice@example.com", "h")
+	if err != nil {
+		t.Fatalf("alice: %v", err)
+	}
+	bob, err := st.CreateUser(ctx, "bob@example.com", "h")
+	if err != nil {
+		t.Fatalf("bob: %v", err)
+	}
+	ws, err := st.CreateWorkspace(ctx, alice.ID, "WS", "ws")
+	if err != nil {
+		t.Fatalf("workspace: %v", err)
+	}
+	doc, err := st.CreateDocument(ctx, alice.ID, ws.ID, "D", "text", -1)
+	if err != nil {
+		t.Fatalf("document: %v", err)
+	}
+
+	// A non-member cannot delete it.
+	if err := st.DeleteDocument(ctx, bob.ID, ws.ID, doc.ID); !errors.Is(err, store.ErrNotFound) {
+		t.Fatalf("isolation: want ErrNotFound, got %v", err)
+	}
+
+	// The owner deletes it; the workspace is then empty.
+	if err := st.DeleteDocument(ctx, alice.ID, ws.ID, doc.ID); err != nil {
+		t.Fatalf("delete: %v", err)
+	}
+	docs, err := st.ListDocuments(ctx, alice.ID, ws.ID)
+	if err != nil {
+		t.Fatalf("list: %v", err)
+	}
+	if len(docs) != 0 {
+		t.Fatalf("after delete: %d docs, want 0", len(docs))
+	}
+
+	// Deleting a missing document is ErrNotFound.
+	if err := st.DeleteDocument(ctx, alice.ID, ws.ID, doc.ID); !errors.Is(err, store.ErrNotFound) {
+		t.Fatalf("re-delete: want ErrNotFound, got %v", err)
+	}
+}

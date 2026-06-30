@@ -16,6 +16,7 @@ type Document struct {
 	Title       string    `json:"title"`
 	Status      string    `json:"status"`
 	ChunkCount  int       `json:"chunk_count"`
+	Error       string    `json:"error,omitempty"`
 	CreatedAt   time.Time `json:"created_at"`
 }
 
@@ -32,9 +33,9 @@ func (s *Store) CreateDocument(ctx context.Context, userID, workspaceID, title, 
 		`INSERT INTO documents (workspace_id, title, source_text)
 		 SELECT $1, $2, $3
 		 WHERE $4 < 0 OR (SELECT count(*) FROM documents WHERE workspace_id = $1) < $4
-		 RETURNING id::text, workspace_id::text, title, status, chunk_count, created_at`,
+		 RETURNING id::text, workspace_id::text, title, status, chunk_count, COALESCE(error, ''), created_at`,
 		workspaceID, title, sourceText, maxDocuments,
-	).Scan(&d.ID, &d.WorkspaceID, &d.Title, &d.Status, &d.ChunkCount, &d.CreatedAt)
+	).Scan(&d.ID, &d.WorkspaceID, &d.Title, &d.Status, &d.ChunkCount, &d.Error, &d.CreatedAt)
 	if errors.Is(err, pgx.ErrNoRows) {
 		return Document{}, ErrLimitReached
 	}
@@ -50,7 +51,7 @@ func (s *Store) ListDocuments(ctx context.Context, userID, workspaceID string) (
 		return nil, err
 	}
 	rows, err := s.pool.Query(ctx,
-		`SELECT id::text, workspace_id::text, title, status, chunk_count, created_at
+		`SELECT id::text, workspace_id::text, title, status, chunk_count, COALESCE(error, ''), created_at
 		 FROM documents WHERE workspace_id = $1 ORDER BY created_at DESC`,
 		workspaceID,
 	)
@@ -62,7 +63,7 @@ func (s *Store) ListDocuments(ctx context.Context, userID, workspaceID string) (
 	out := []Document{}
 	for rows.Next() {
 		var d Document
-		if err := rows.Scan(&d.ID, &d.WorkspaceID, &d.Title, &d.Status, &d.ChunkCount, &d.CreatedAt); err != nil {
+		if err := rows.Scan(&d.ID, &d.WorkspaceID, &d.Title, &d.Status, &d.ChunkCount, &d.Error, &d.CreatedAt); err != nil {
 			return nil, err
 		}
 		out = append(out, d)
@@ -146,4 +147,38 @@ func (s *Store) ReingestDocument(ctx context.Context, userID, workspaceID, docum
 		return ErrNotFound
 	}
 	return nil
+}
+
+// DeleteDocument removes a document and its chunks, enforcing workspace
+// membership. Chunks carry no foreign key to documents (service-boundary
+// decoupling), so they are deleted explicitly in the same transaction. Returns
+// ErrNotFound if the document is absent or not visible to the user.
+func (s *Store) DeleteDocument(ctx context.Context, userID, workspaceID, documentID string) error {
+	if _, err := s.GetWorkspaceForUser(ctx, userID, workspaceID); err != nil {
+		return err
+	}
+	tx, err := s.pool.Begin(ctx)
+	if err != nil {
+		return err
+	}
+	defer func() { _ = tx.Rollback(ctx) }()
+
+	tag, err := tx.Exec(ctx,
+		`DELETE FROM documents WHERE id = $1 AND workspace_id = $2`,
+		documentID, workspaceID,
+	)
+	if err != nil {
+		var pgErr *pgconn.PgError
+		if errors.As(err, &pgErr) && pgErr.Code == "22P02" { // invalid uuid input
+			return ErrNotFound
+		}
+		return err
+	}
+	if tag.RowsAffected() == 0 {
+		return ErrNotFound
+	}
+	if _, err := tx.Exec(ctx, `DELETE FROM chunks WHERE document_id = $1`, documentID); err != nil {
+		return err
+	}
+	return tx.Commit(ctx)
 }

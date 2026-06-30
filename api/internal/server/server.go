@@ -89,6 +89,7 @@ func (s *Server) routes() {
 		r.Get("/workspaces/{id}/documents", s.handleListDocuments)
 		r.Post("/workspaces/{id}/documents", s.handleCreateDocument)
 		r.Post("/workspaces/{id}/documents/{docId}/reingest", s.handleReingestDocument)
+		r.Delete("/workspaces/{id}/documents/{docId}", s.handleDeleteDocument)
 		r.With(s.userRateLimit(20, time.Minute)).Post("/workspaces/{id}/chat", s.handleChat)
 		r.Get("/workspaces/{id}/billing", s.handleGetBilling)
 		r.Post("/workspaces/{id}/billing/checkout", s.handleCheckout)

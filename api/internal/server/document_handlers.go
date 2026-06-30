@@ -111,3 +111,17 @@ func (s *Server) handleReingestDocument(w http.ResponseWriter, r *http.Request) 
 	}
 	writeJSON(w, http.StatusAccepted, map[string]string{"status": "pending"})
 }
+
+func (s *Server) handleDeleteDocument(w http.ResponseWriter, r *http.Request) {
+	err := s.store.DeleteDocument(r.Context(),
+		userIDFrom(r.Context()), chi.URLParam(r, "id"), chi.URLParam(r, "docId"))
+	if errors.Is(err, store.ErrNotFound) {
+		writeError(w, http.StatusNotFound, "document not found")
+		return
+	}
+	if err != nil {
+		s.serverError(w, err)
+		return
+	}
+	w.WriteHeader(http.StatusNoContent)
+}
