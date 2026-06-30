@@ -27,6 +27,12 @@ class Settings(BaseSettings):
     gemini_embedding_model: str = "text-embedding-004"
     gemini_chat_model: str = "gemini-2.0-flash"
 
+    # Groq (free tier). OpenAI-compatible hosted chat — chat only, so pair it
+    # with any embeddings provider above. Key at https://console.groq.com.
+    groq_api_key: str = ""
+    groq_base_url: str = "https://api.groq.com/openai/v1"
+    groq_chat_model: str = "llama-3.3-70b-versatile"
+
     chunk_size: int = 1000
     chunk_overlap: int = 150
 

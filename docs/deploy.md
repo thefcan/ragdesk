@@ -68,8 +68,12 @@ matches the schema, so there is no migration. On `ragdesk-ai`:
 | `CHAT_PROVIDER` | `gemini` |
 | `GEMINI_API_KEY` | your key from <https://aistudio.google.com/apikey> |
 
-Redeploy — no other code changes. Prefer a local model? Set the providers to
-`ollama` instead and point `OLLAMA_BASE_URL` at your Ollama host.
+Embeddings and chat are independent — mix providers freely. Prefer a different
+chat model? Set `CHAT_PROVIDER=groq` with a `GROQ_API_KEY` (Groq's free,
+OpenAI-compatible API) and keep Gemini for embeddings.
+
+Redeploy — no other code changes. Prefer a fully local model? Set the providers
+to `ollama` instead and point `OLLAMA_BASE_URL` at your Ollama host.
 
 ## Real billing (optional)
 

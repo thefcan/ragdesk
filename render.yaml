@@ -38,12 +38,16 @@ services:
           name: ragdesk-db
           property: connectionString
       - key: EMBEDDING_PROVIDER
-        value: fake # set to "gemini" for real hosted embeddings (free tier)
+        value: fake # "gemini" for real hosted embeddings (free tier)
       - key: CHAT_PROVIDER
-        value: fake # set to "gemini" for real hosted chat (free tier)
-      # For real Gemini answers, switch the two providers above to "gemini" and
-      # add your free key from https://aistudio.google.com/apikey:
+        value: fake # "gemini" or "groq" for real hosted chat (free tier)
+      # For real answers on the free tier, switch the providers above + add a key
+      # (they are independent — embeddings and chat can use different providers):
+      #   EMBEDDING_PROVIDER=gemini + GEMINI_API_KEY — https://aistudio.google.com/apikey
+      #   CHAT_PROVIDER=groq        + GROQ_API_KEY   — https://console.groq.com
       # - key: GEMINI_API_KEY
+      #   sync: false
+      # - key: GROQ_API_KEY
       #   sync: false
       - key: INTERNAL_TOKEN
         generateValue: true # shared with the API below

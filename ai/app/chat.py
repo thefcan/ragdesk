@@ -61,6 +61,32 @@ class GeminiChat(ChatProvider):
                                 yield token
 
 
+class GroqChat(ChatProvider):
+    """Streams tokens from Groq's OpenAI-compatible chat API (free tier)."""
+
+    def stream(self, prompt: str) -> Iterator[str]:
+        payload = {
+            "model": settings.groq_chat_model,
+            "messages": [{"role": "user", "content": prompt}],
+            "stream": True,
+        }
+        headers = {"Authorization": f"Bearer {settings.groq_api_key}"}
+        with httpx.Client(base_url=settings.groq_base_url, timeout=120.0) as client:
+            with client.stream("POST", "/chat/completions", headers=headers, json=payload) as resp:
+                resp.raise_for_status()
+                for line in resp.iter_lines():
+                    if not line.startswith("data:"):
+                        continue
+                    data = line[len("data:") :].strip()
+                    if data == "[DONE]":
+                        break
+                    obj = json.loads(data)
+                    for choice in obj.get("choices", []):
+                        token = choice.get("delta", {}).get("content")
+                        if token:
+                            yield token
+
+
 class FakeChat(ChatProvider):
     """Deterministic answer so tests/CI need no model server."""
 
@@ -73,6 +99,8 @@ def get_chat_provider() -> ChatProvider:
         return FakeChat()
     if settings.chat_provider == "gemini":
         return GeminiChat()
+    if settings.chat_provider == "groq":
+        return GroqChat()
     return OllamaChat()
 
 
