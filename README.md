@@ -1,23 +1,31 @@
-# ragdesk
+<div align="center">
+
+# 🧠 ragdesk
+
+### A multi-tenant, AI-powered knowledge SaaS
+
+Teams upload their documents and chat with an assistant that answers
+**only from those documents, with citations** — Retrieval-Augmented
+Generation (RAG) as a real, billable product.
 
 [![CI](https://github.com/thefcan/ragdesk/actions/workflows/ci.yml/badge.svg)](https://github.com/thefcan/ragdesk/actions/workflows/ci.yml)
 [![CD](https://github.com/thefcan/ragdesk/actions/workflows/cd.yml/badge.svg)](https://github.com/thefcan/ragdesk/actions/workflows/cd.yml)
 [![CodeQL](https://github.com/thefcan/ragdesk/actions/workflows/codeql.yml/badge.svg)](https://github.com/thefcan/ragdesk/actions/workflows/codeql.yml)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
+
 [![Go](https://img.shields.io/badge/Go-1.26-00ADD8?logo=go&logoColor=white)](api/go.mod)
 [![Python](https://img.shields.io/badge/Python-FastAPI-3776AB?logo=python&logoColor=white)](ai/)
 [![Next.js](https://img.shields.io/badge/Next.js-16-black?logo=next.js)](web/)
 
-> **A multi-tenant, AI-powered knowledge SaaS.** Teams upload their documents
-> and chat with an assistant that answers **only from those documents, with
-> citations** — Retrieval-Augmented Generation (RAG) as a real, billable product.
+</div>
 
 ragdesk is built the way production AI software actually ships: a strongly-typed
 **Go** core for tenancy, billing and metering; a **Python/FastAPI** service for
 the LLM and embedding pipeline; a **Next.js** front-end; **Postgres + pgvector**
-for rows *and* vectors; and a **provider-agnostic** model layer so it runs on a
-**free, local LLM (Ollama)** in development. The entire stack runs on **$0** of
-paid infrastructure.
+for rows *and* vectors; and a **provider-agnostic** model layer that runs on a
+free local LLM (**Ollama**) or a free hosted tier (**Gemini**, **Groq**). Every
+feature shipped in small, tested, atomically-committed phases — **CI, CD and
+CodeQL green** — on **$0** of paid infrastructure.
 
 ---
 
@@ -45,7 +53,7 @@ paid infrastructure.
 - 🔐 **JWT auth** — register/login with bcrypt-hashed passwords, HS256 tokens
 - 📄 **Document ingestion** — upload → chunk → embed (Ollama) → `pgvector`, processed async via a Redis queue + worker
 - 💬 **RAG chat** — streaming answers grounded in your documents, **with citations** (pgvector cosine retrieval)
-- 🔌 **Provider-agnostic LLM** — swap embeddings & chat independently: **Ollama** (local/$0), **Gemini** (free hosted tier), or a deterministic **fake** for tests/CI
+- 🔌 **Provider-agnostic LLM** — mix & match embeddings and chat: **Ollama** (local/$0), **Gemini** & **Groq** (free hosted tiers), or a deterministic **fake** for tests/CI
 - 💳 **Billing & metering** — Stripe subscriptions (test mode), per-workspace usage metering, plan limits enforced with `402 Payment Required`; runs $0 with a dev-mode fallback
 - 🔒 **Production hardening** — rate limiting, structured logs, health probes, govulncheck, CodeQL
 - 🔭 **Observability** — optional OpenTelemetry tracing across web → API → AI → Postgres (no-op until configured)
@@ -61,7 +69,7 @@ flowchart LR
     API --> Redis[(Redis · cache + queue)]
     API -->|ingest / chat| AI[ai · Python + FastAPI]
     AI --> PG
-    AI -->|provider-agnostic| LLM{{Ollama · Gemini}}
+    AI -->|provider-agnostic| LLM{{Ollama · Gemini · Groq}}
 ```
 
 See [`docs/architecture.md`](docs/architecture.md) for the full design.
@@ -72,7 +80,7 @@ See [`docs/architecture.md`](docs/architecture.md) for the full design.
 |-------|--------|
 | Frontend | Next.js 16, TypeScript, Tailwind v4 |
 | Core API | Go 1.26, chi, pgx, go-redis, JWT, bcrypt |
-| AI service | Python, FastAPI, pgvector, Ollama |
+| AI service | Python, FastAPI, pgvector; Ollama · Gemini · Groq |
 | Data | PostgreSQL 16 + pgvector, Redis 7 |
 | Billing | Stripe (test mode) |
 | Observability | OpenTelemetry (OTLP), Jaeger |
@@ -151,18 +159,9 @@ code; usage is metered durably in Postgres and enforced at the API edge.
   are recorded and skipped), the API refuses to start with a Stripe key but no
   webhook secret, and only a workspace **owner** can change the plan.
 
-## 🗺️ Roadmap
-
-Built phase by phase, each shipped with tests, clean commits, Docker and green CI.
-
-- [x] **Phase 0 — Skeleton**: monorepo, docker-compose (Postgres+pgvector, Redis), Go & Python health services, CI, CodeQL, Dependabot
-- [x] **Phase 1 — Auth & multi-tenancy**: JWT register/login, workspaces, members, roles, tenant isolation, **Next.js web** (landing, auth, dashboard)
-- [x] **Phase 2 — Document ingestion**: upload → chunk → embed (Ollama) → `pgvector`, async Redis queue + worker
-- [x] **Phase 3 — RAG chat**: pgvector cosine retrieval + streaming answers + citations, provider-agnostic LLM
-- [x] **Phase 4 — Billing & metering**: Stripe subscriptions (test mode), per-workspace usage metering, plan-limit enforcement (`402`), $0 dev mode
-- [x] **Phase 5 — Delivery, deploy & observability**: **CD to GHCR**, one-click **Render Blueprint**, **OpenTelemetry** tracing (web → API → AI → Postgres)
-
 ## ☁️ Deploy
+
+[![Deploy to Render](https://render.com/images/deploy-to-render-button.svg)](https://render.com/deploy?repo=https://github.com/thefcan/ragdesk)
 
 Every push to `main` builds and publishes both service images to GHCR
 (`ghcr.io/thefcan/ragdesk-api`, `ghcr.io/thefcan/ragdesk-ai`), so the stack runs
@@ -188,9 +187,9 @@ OTEL_EXPORTER_OTLP_ENDPOINT=http://jaeger:4318 docker compose --profile observab
 
 ## 💸 Runs on $0
 
-Every component has a free path: Ollama (local LLM), Postgres+pgvector and Redis
-in Docker, Stripe **test mode**, Vercel + Supabase + Render free tiers, and
-GitHub Actions for public repos.
+Every component has a free path: a local LLM (**Ollama**) or free hosted tiers
+(**Gemini**, **Groq**), Postgres+pgvector and Redis in Docker, Stripe **test
+mode**, Render/Vercel free tiers, and GitHub Actions for public repos.
 
 ## 📄 License
 
