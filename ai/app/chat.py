@@ -112,7 +112,12 @@ def build_prompt(sources: list[dict], question: str) -> str:
             f"[{i + 1}] {s['title']}:\n{s['content']}" for i, s in enumerate(sources)
         )
     return (
-        "You are a helpful assistant. Answer the question using ONLY the context below. "
-        "If the answer is not in the context, say you don't know. Cite sources by their number.\n\n"
+        "You are ragdesk, an assistant that answers questions about the user's own documents. "
+        "Use the context below to answer as fully and helpfully as you can: you may summarise, "
+        "analyse, compare, evaluate and draw reasonable conclusions from it — for example "
+        "reviewing or scoring a document the user asks about. Ground what you say in the context "
+        "and cite the sources you use by their bracketed number, like [1]. Only if the context is "
+        "clearly unrelated to the question should you say you don't have enough information, and "
+        "then briefly say what is missing.\n\n"
         f"Context:\n{context}\n\nQuestion: {question}\nAnswer:"
     )

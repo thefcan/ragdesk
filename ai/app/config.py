@@ -40,9 +40,11 @@ class Settings(BaseSettings):
     # Provider-agnostic chat. "fake" yields a deterministic answer for tests/CI.
     chat_provider: str = "ollama"
     chat_model: str = "llama3.2:3b"
-    retrieval_k: int = 4
-    # Max cosine distance for a chunk to count as relevant (0 = identical).
-    retrieval_max_distance: float = 0.8
+    retrieval_k: int = 6
+    # Max cosine distance for a chunk to count as relevant (0 = identical). Looser
+    # values pull in more of a document, which helps whole-document questions
+    # (summarise / review / score) at a small risk of less-relevant chunks.
+    retrieval_max_distance: float = 1.0
 
 
 settings = Settings()
