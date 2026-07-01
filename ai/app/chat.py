@@ -109,9 +109,7 @@ def get_chat_provider() -> ChatProvider:
 MAX_HISTORY_TURNS = 8
 
 
-def build_prompt(
-    sources: list[dict], question: str, history: list[dict] | None = None
-) -> str:
+def build_prompt(sources: list[dict], question: str, history: list[dict] | None = None) -> str:
     if not sources:
         context = "(no relevant documents found)"
     else:
