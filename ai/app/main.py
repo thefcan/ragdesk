@@ -6,6 +6,7 @@ RAG chat arrives in Phase 3.
 
 import json
 import logging
+import os
 from collections.abc import Iterator
 
 import psycopg
@@ -42,8 +43,16 @@ def healthz() -> dict:
 
 @app.get("/version")
 def version() -> dict:
-    """Report build metadata, useful for verifying what is deployed."""
-    return {"service": "ragdesk-ai", "version": VERSION}
+    """Report build metadata, useful for verifying what is deployed.
+
+    On Render the deployed commit is exposed as RENDER_GIT_COMMIT, so this
+    doubles as a way to confirm exactly which revision is live.
+    """
+    return {
+        "service": "ragdesk-ai",
+        "version": VERSION,
+        "revision": os.getenv("RENDER_GIT_COMMIT", ""),
+    }
 
 
 @app.get("/readyz")

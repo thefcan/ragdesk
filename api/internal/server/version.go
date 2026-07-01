@@ -2,6 +2,7 @@ package server
 
 import (
 	"net/http"
+	"os"
 	"runtime"
 	"runtime/debug"
 )
@@ -30,6 +31,11 @@ func (s *Server) handleVersion(w http.ResponseWriter, _ *http.Request) {
 				resp.Revision = kv.Value
 			}
 		}
+	}
+	// Container images are built without a .git dir, so vcs.revision is empty;
+	// fall back to the commit Render injects, so /version reports what is live.
+	if resp.Revision == "" {
+		resp.Revision = os.Getenv("RENDER_GIT_COMMIT")
 	}
 	writeJSON(w, http.StatusOK, resp)
 }
