@@ -10,12 +10,48 @@ import (
 
 	"github.com/go-chi/chi/v5"
 
+	"github.com/thefcan/ragdesk/api/internal/ai"
 	"github.com/thefcan/ragdesk/api/internal/billing"
 	"github.com/thefcan/ragdesk/api/internal/store"
 )
 
-// maxQuestionBytes caps a chat question to bound prompt size and LLM cost.
-const maxQuestionBytes = 4 << 10 // 4 KiB
+const (
+	// maxQuestionBytes caps a chat question to bound prompt size and LLM cost.
+	maxQuestionBytes = 4 << 10 // 4 KiB
+	// maxHistoryTurns / maxHistoryBytes bound how much prior conversation a
+	// client can replay for follow-up context, so the prompt stays cheap.
+	maxHistoryTurns = 10
+	maxHistoryBytes = 12 << 10 // 12 KiB across all turns
+)
+
+// sanitizeHistory keeps only well-formed, recent conversation turns within the
+// size budget. It drops unknown roles and empty content, keeps the most recent
+// maxHistoryTurns, then trims the oldest turns until under maxHistoryBytes.
+func sanitizeHistory(in []ai.ChatTurn) []ai.ChatTurn {
+	cleaned := make([]ai.ChatTurn, 0, len(in))
+	for _, t := range in {
+		if t.Role != "user" && t.Role != "assistant" {
+			continue
+		}
+		content := strings.TrimSpace(t.Content)
+		if content == "" {
+			continue
+		}
+		cleaned = append(cleaned, ai.ChatTurn{Role: t.Role, Content: content})
+	}
+	if len(cleaned) > maxHistoryTurns {
+		cleaned = cleaned[len(cleaned)-maxHistoryTurns:]
+	}
+	total := 0
+	for _, t := range cleaned {
+		total += len(t.Content)
+	}
+	for total > maxHistoryBytes && len(cleaned) > 0 {
+		total -= len(cleaned[0].Content)
+		cleaned = cleaned[1:]
+	}
+	return cleaned
+}
 
 func (s *Server) handleChat(w http.ResponseWriter, r *http.Request) {
 	userID := userIDFrom(r.Context())
@@ -48,14 +84,15 @@ func (s *Server) handleChat(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 
-	r.Body = http.MaxBytesReader(w, r.Body, maxQuestionBytes+1024)
+	r.Body = http.MaxBytesReader(w, r.Body, maxQuestionBytes+maxHistoryBytes+2048)
 	var req struct {
-		Question string `json:"question"`
+		Question string        `json:"question"`
+		History  []ai.ChatTurn `json:"history"`
 	}
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
 		var maxErr *http.MaxBytesError
 		if errors.As(err, &maxErr) {
-			writeError(w, http.StatusRequestEntityTooLarge, "question too long (max 4 KB)")
+			writeError(w, http.StatusRequestEntityTooLarge, "message too long")
 			return
 		}
 		writeError(w, http.StatusBadRequest, "invalid JSON body")
@@ -78,7 +115,7 @@ func (s *Server) handleChat(w http.ResponseWriter, r *http.Request) {
 	}
 
 	w.Header().Set("Content-Type", "application/x-ndjson")
-	if err := s.ai.Chat(r.Context(), workspaceID, req.Question, w); err != nil {
+	if err := s.ai.Chat(r.Context(), workspaceID, req.Question, sanitizeHistory(req.History), w); err != nil {
 		s.log.Error("chat stream", slog.String("workspace_id", workspaceID), slog.Any("err", err))
 	}
 }

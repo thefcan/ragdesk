@@ -93,9 +93,15 @@ def ingest(
     return IngestResponse(chunk_count=count)
 
 
+class ChatTurn(BaseModel):
+    role: str
+    content: str
+
+
 class ChatRequest(BaseModel):
     workspace_id: str
     question: str
+    history: list[ChatTurn] = []
 
 
 @app.post("/chat")
@@ -110,7 +116,8 @@ def chat(
     sources = retrieve(
         req.workspace_id, req.question, settings.retrieval_k, settings.retrieval_max_distance
     )
-    prompt = build_prompt(sources, req.question)
+    history = [{"role": t.role, "content": t.content} for t in req.history]
+    prompt = build_prompt(sources, req.question, history)
 
     def generate() -> Iterator[str]:
         seen: set[str] = set()

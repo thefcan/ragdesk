@@ -83,15 +83,23 @@ func (c *Client) Ingest(ctx context.Context, documentID, workspaceID, text strin
 	return out.ChunkCount, nil
 }
 
+// ChatTurn is one prior message in the conversation, forwarded to the AI
+// service so follow-up questions can be resolved against earlier turns.
+type ChatTurn struct {
+	Role    string `json:"role"`
+	Content string `json:"content"`
+}
+
 type chatRequest struct {
-	WorkspaceID string `json:"workspace_id"`
-	Question    string `json:"question"`
+	WorkspaceID string     `json:"workspace_id"`
+	Question    string     `json:"question"`
+	History     []ChatTurn `json:"history,omitempty"`
 }
 
 // Chat streams a RAG answer from the AI service straight through to w (NDJSON).
-// On an upstream failure it emits an error event so the client always receives
-// a well-formed stream.
-func (c *Client) Chat(ctx context.Context, workspaceID, question string, w http.ResponseWriter) error {
+// history carries prior turns for follow-up context. On an upstream failure it
+// emits an error event so the client always receives a well-formed stream.
+func (c *Client) Chat(ctx context.Context, workspaceID, question string, history []ChatTurn, w http.ResponseWriter) error {
 	flusher, _ := w.(http.Flusher)
 	emitError := func() {
 		_, _ = io.WriteString(w, `{"type":"error","content":"the assistant is unavailable"}`+"\n")
@@ -100,7 +108,7 @@ func (c *Client) Chat(ctx context.Context, workspaceID, question string, w http.
 		}
 	}
 
-	req, err := c.newRequest(ctx, "/chat", chatRequest{WorkspaceID: workspaceID, Question: question})
+	req, err := c.newRequest(ctx, "/chat", chatRequest{WorkspaceID: workspaceID, Question: question, History: history})
 	if err != nil {
 		emitError()
 		return err

@@ -230,6 +230,56 @@ func TestChatStreaming(t *testing.T) {
 	}
 }
 
+func TestChatForwardsSanitizedHistory(t *testing.T) {
+	turns := make(chan int, 1)
+	aiSrv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		var body struct {
+			History []struct {
+				Role    string `json:"role"`
+				Content string `json:"content"`
+			} `json:"history"`
+		}
+		_ = json.NewDecoder(r.Body).Decode(&body)
+		turns <- len(body.History)
+		w.Header().Set("Content-Type", "application/x-ndjson")
+		_, _ = io.WriteString(w, `{"type":"token","content":"ok"}`+"\n")
+		_, _ = io.WriteString(w, `{"type":"done"}`+"\n")
+	}))
+	defer aiSrv.Close()
+
+	h := newTestServer(t, aiSrv.URL)
+	_, body := doJSON(t, h, http.MethodPost, "/auth/register", "", map[string]any{
+		"email": "alice@example.com", "password": "supersecret",
+	})
+	token, _ := body["token"].(string)
+	ws, _ := body["workspace"].(map[string]any)
+	wsID, _ := ws["id"].(string)
+
+	// Two valid turns, plus an unknown role and a blank turn that must be dropped.
+	payload := `{"question":"and on Pro?","history":[` +
+		`{"role":"user","content":"How many docs on Free?"},` +
+		`{"role":"assistant","content":"25 documents."},` +
+		`{"role":"system","content":"drop me"},` +
+		`{"role":"user","content":"   "}]}`
+	req := httptest.NewRequest(http.MethodPost, "/workspaces/"+wsID+"/chat", strings.NewReader(payload))
+	req.Header.Set("Authorization", "Bearer "+token)
+	req.Header.Set("Content-Type", "application/json")
+	rec := httptest.NewRecorder()
+	h.ServeHTTP(rec, req)
+
+	if rec.Code != http.StatusOK {
+		t.Fatalf("chat status = %d", rec.Code)
+	}
+	select {
+	case n := <-turns:
+		if n != 2 {
+			t.Fatalf("AI service received %d history turns, want 2 (invalid role + blank dropped)", n)
+		}
+	default:
+		t.Fatal("AI service was not called")
+	}
+}
+
 func TestChatQuestionSizeLimit(t *testing.T) {
 	h := newTestServer(t, "http://unused")
 	_, body := doJSON(t, h, http.MethodPost, "/auth/register", "", map[string]any{

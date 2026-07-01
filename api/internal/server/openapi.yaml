@@ -180,6 +180,17 @@ paths:
               required: [question]
               properties:
                 question: { type: string, maxLength: 4096 }
+                history:
+                  type: array
+                  description: >-
+                    Prior conversation turns for follow-up context. Only the
+                    most recent turns are used; older turns are dropped.
+                  items:
+                    type: object
+                    required: [role, content]
+                    properties:
+                      role: { type: string, enum: [user, assistant] }
+                      content: { type: string }
       responses:
         "200":
           description: NDJSON stream of a sources event then token events
