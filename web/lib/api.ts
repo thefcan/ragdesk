@@ -159,6 +159,7 @@ export function devCancel(token: string, workspaceId: string) {
 }
 
 export type Source = { document_id: string; title: string; snippet: string };
+export type ChatTurn = { role: "user" | "assistant"; content: string };
 
 type ChatHandlers = {
   onSources?: (sources: Source[]) => void;
@@ -171,11 +172,12 @@ export async function chat(
   workspaceId: string,
   question: string,
   handlers: ChatHandlers,
+  history: ChatTurn[] = [],
 ): Promise<void> {
   const res = await fetch(`${API_URL}/workspaces/${workspaceId}/chat`, {
     method: "POST",
     headers: headers(token),
-    body: JSON.stringify({ question }),
+    body: JSON.stringify({ question, history }),
   });
   if (!res.ok) {
     const data = await res.json().catch(() => ({}));
